@@ -1,40 +1,13 @@
-parseLine :: String -> Maybe Int
-parseLine "" = Nothing
-parseLine x = Just $ read x
+p = putStrLn . show
 
--- make list elements separated by Nothing into nested lists
-group :: [[Int]] -> [Maybe Int] -> [[Int]]
-group acc []                = acc
-group [] (Just x:xs)        = group [[x]] xs
-group (a:as) (Just x:xs)    = group ((x : a) : as) xs
-group acc (Nothing:xs)      = group ([] : acc) xs
+-- Take the contents of input, split them , group them up by empty newline,
+-- and finally take the maximum of sums.
+solve :: String -> Int
+solve = foldl max 0 . sumLn [] . lines
+  -- return an array of ints. sum numbers until we get a newline, then begin a new sum
+  where sumLn acc []                = acc
+        sumLn [] (x:xs)             = sumLn [read x] xs
+        sumLn acc ("":xs)           = sumLn (0 : acc) xs
+        sumLn (a:as) (x:xs)         = sumLn ((read x + a) : as) xs
 
--- parse input file into lists of ints
-parse :: String -> [[Int]]
-parse = group [] . map parseLine . lines
-
-maxSum :: [[Int]] -> Int
-maxSum = foldl max 0 . map sum
-
-main = do
-  file <- readFile "./input.txt"
-  putStrLn $ show $ maxSum $ parse file
-
--- import Prelude hiding (readFile, unwords, lines)
--- import Data.Text hiding (length, map, foldl)
--- import Data.Text.IO
--- import Data.Text.Read
-
-  -- trace ("called splitOn" ++ show $ length elves) (elves)
-
--- mmap = (map . map)
-
---parseElves :: Text -> [[Text]]
---parseElves = (map lines) . (splitOn (pack "\n\n"))
---
---main = do
---  file <- readFile "./input.txt"
---  debug $ foldl (+) $ mmap fst $ map rights $ mmap decimal $ parseElves file
---  return ""
---
---  -- trace ("called splitOn" ++ show $ length elves) (elves)
+main = p =<< solve <$> readFile "./input.txt"
