@@ -26,4 +26,4 @@
   (max (parse-elves (read-file-lines f))))
 
 
-(solve (expand-file-name "./input.txt"))
+(solve "./input.txt")
