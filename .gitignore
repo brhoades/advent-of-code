@@ -1,0 +1,4 @@
+*.hi
+*.o
+input.txt
+main
