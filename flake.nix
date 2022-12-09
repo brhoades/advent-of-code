@@ -11,6 +11,7 @@
       devShells.default = with (pkgsFor system); mkShell {
         buildInputs = [
           ghc
+          rustup
         ];
       };
     }));
