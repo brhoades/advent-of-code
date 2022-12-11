@@ -1,13 +1,16 @@
 mod twenty_two;
 
-use std::path::PathBuf;
 use std::fs::read_to_string;
+use std::path::PathBuf;
 
-use structopt::StructOpt;
 use anyhow::{bail, Result};
+use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "advent-of-code", about = "Runs advent of code solvers for a given year and problem provided an input.")]
+#[structopt(
+    name = "advent-of-code",
+    about = "Runs advent of code solvers for a given year and problem provided an input."
+)]
 struct Opt {
     /// Year of advent of code problem to run.
     #[structopt(name = "year")]
@@ -28,7 +31,8 @@ fn main() -> Result<()> {
 
     match (opt.year, opt.problem) {
         (2022, 5) => twenty_two::five::run(input),
+        (2022, 6) => twenty_two::six::run(input),
         (2022, _) => bail!("unknown problem number {}", opt.problem),
-        (_, _) => bail!( "unkown year {}", opt.year),
+        (_, _) => bail!("unkown year {}", opt.year),
     }
 }
