@@ -1,5 +1,6 @@
 use std::ops::Range;
 use std::borrow::Borrow;
+use std::collections::HashSet;
 
 use anyhow::Result;
 
@@ -10,43 +11,47 @@ enum Either<T> {
 
 use Either::*;
 
-/// we solve 06 pt 1 by splitting the bytes (no fancy utf8, sorry!)
-/// and comparing them in windows until 4 are different.
+const WINDOW_SIZE: usize = 14;
+
+/// we solve 06 pt 2 by splitting the bytes (no fancy utf8, sorry!)
+/// and comparing them in windows until 12 are different.
 pub fn run(input: String) -> Result<()> {
     let input = input.trim();
 
     // fold keeps tracks of # of windows we've looked at,
     // which is the answer: at what character does the message
     // begin?
-    let result: Either<usize> = input
+    // A HashSet is passed along to avoid extra reallocs.
+    let (_, result): (HashSet<&u8>, Either<usize>) = input
         .as_bytes()
-        .windows(4)
+        .windows(WINDOW_SIZE)
         // sets acc to Right after finding, which halts further adds
         // otherwise acc is Left(#) after run
-        .fold(Left(4), |acc, sl| {
+        .fold((HashSet::with_capacity(WINDOW_SIZE), Left(WINDOW_SIZE)), |acc, sl| {
             match acc {
-                Left(acc) => {
-                    if sl[0] != sl[1]
-                        && sl[0] != sl[2]
-                        && sl[0] != sl[3]
-                        && sl[1] != sl[2]
-                        && sl[1] != sl[3]
-                        && sl[2] != sl[3] {
-                            Right(acc)
-                        } else {
-                            Left(acc + 1)
+                (mut hs, Left(acc)) => {
+                    hs.clear();
+                    for c in sl {
+                        if hs.contains(c) {
+                            return (hs, Left(acc + 1));
                         }
+                        hs.insert(c);
+                    }
+
+                    (hs, Right(acc))
                 },
                 other => other,
-                }
+            }
         });
 
     match result {
         Left(pos) => println!("read {} characters and failed to find start message", pos),
         Right(pos) => {
             println!("found message after {} characters:", pos);
-            println!("message: {}\n", input[(pos-4 as usize)..(pos as usize)].to_string());
-            println!("neighboring input: ...{}...", str_with_context(input, pos-8..pos+12));
+            println!("...{}_{}_{}...",
+                     str_with_context(input, pos-WINDOW_SIZE*2..pos),
+                     input[pos-WINDOW_SIZE..pos].to_string(),
+                     str_with_context(input, pos..pos+WINDOW_SIZE * 2));
 
         }
     }
