@@ -5,3 +5,7 @@ pub(crate) mod five {
 pub(crate) mod six {
     include!("Y2022/06/main.rs");
 }
+
+pub(crate) mod seven {
+    include!("Y2022/07/main.rs");
+}

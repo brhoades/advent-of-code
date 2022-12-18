@@ -1,6 +1,6 @@
-use std::ops::Range;
 use std::borrow::Borrow;
 use std::collections::HashSet;
+use std::ops::Range;
 
 use anyhow::Result;
 
@@ -27,8 +27,9 @@ pub fn run(input: String) -> Result<()> {
         .windows(WINDOW_SIZE)
         // sets acc to Right after finding, which halts further adds
         // otherwise acc is Left(#) after run
-        .fold((HashSet::with_capacity(WINDOW_SIZE), Left(WINDOW_SIZE)), |acc, sl| {
-            match acc {
+        .fold(
+            (HashSet::with_capacity(WINDOW_SIZE), Left(WINDOW_SIZE)),
+            |acc, sl| match acc {
                 (mut hs, Left(acc)) => {
                     hs.clear();
                     for c in sl {
@@ -39,20 +40,21 @@ pub fn run(input: String) -> Result<()> {
                     }
 
                     (hs, Right(acc))
-                },
+                }
                 other => other,
-            }
-        });
+            },
+        );
 
     match result {
         Left(pos) => println!("read {} characters and failed to find start message", pos),
         Right(pos) => {
             println!("found message after {} characters:", pos);
-            println!("...{}_{}_{}...",
-                     str_with_context(input, pos-WINDOW_SIZE*2..pos),
-                     input[pos-WINDOW_SIZE..pos].to_string(),
-                     str_with_context(input, pos..pos+WINDOW_SIZE * 2));
-
+            println!(
+                "...{}_{}_{}...",
+                str_with_context(input, pos - WINDOW_SIZE * 2..pos),
+                input[pos - WINDOW_SIZE..pos].to_string(),
+                str_with_context(input, pos..pos + WINDOW_SIZE * 2)
+            );
         }
     }
     Ok(())

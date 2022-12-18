@@ -32,6 +32,7 @@ fn main() -> Result<()> {
     match (opt.year, opt.problem) {
         (2022, 5) => twenty_two::five::run(input),
         (2022, 6) => twenty_two::six::run(input),
+        (2022, 7) => twenty_two::seven::run(input),
         (2022, _) => bail!("unknown problem number {}", opt.problem),
         (_, _) => bail!("unkown year {}", opt.year),
     }
