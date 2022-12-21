@@ -1,6 +1,6 @@
 *.hi
 *.o
-input.txt
+input*.txt
 main
 
 

@@ -40,6 +40,7 @@ impl Filesystem {
     }
 
     /// get returns a file's size for a given path
+    #[allow(dead_code)]
     pub fn get(&self, path: &str) -> Option<usize> {
         self.root
             .get(self.canonical_path_segments(path).unwrap().as_slice())
@@ -127,6 +128,7 @@ impl Node {
     }
 
     /// len returns the number of children at this node
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.children.len()
     }
@@ -286,12 +288,14 @@ fn test_iter_fs() {
     }
 }
 
+#[cfg(test)]
 fn assert_file_eq(path: &str, size: usize, actual: Option<(PathBuf, &Child)>) {
     let c = File(size);
     assert_eq!(Some((PathBuf::from(path), &c)), actual);
 }
 
 // shallow assert a folder is equal, only counting children
+#[cfg(test)]
 fn assert_folder_eq(path: &str, children: usize, actual: Option<(PathBuf, &Child)>) {
     if let Some((actualpath, Folder(n))) = actual {
         assert_eq!(children, n.len(), "node: {:?}", n);
