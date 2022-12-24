@@ -7,7 +7,17 @@ use anyhow::{bail, Error, Result};
 
 pub fn run(input: String) -> Result<()> {
     let orders = parse_orders(&input)?;
-    let mut m = Map::new();
+    let mut m = Map::new(1);
+
+    // println!("{}", m);
+    for o in &orders {
+        m.execute(o.clone());
+        // println!("{}", m);
+    }
+
+    println!("visited: {}", m.visited.len());
+
+    let mut m = Map::new(9);
 
     // println!("{}", m);
     for o in orders {
@@ -15,7 +25,7 @@ pub fn run(input: String) -> Result<()> {
         // println!("{}", m);
     }
 
-    println!("visited: {}", m.visited.len());
+    println!("visited, pt 2: {}", m.visited.len());
     Ok(())
 }
 
@@ -29,9 +39,6 @@ impl Coordinate {
     fn new(x: i32, y: i32) -> Self {
         Self { x, y }
     }
-    fn as_tuple(&self) -> (&i32, &i32) {
-        (&self.x, &self.y)
-    }
 
     fn offset(&mut self, x: i32, y: i32) {
         self.x += x;
@@ -40,16 +47,18 @@ impl Coordinate {
 }
 
 struct Map {
-    head: Coordinate,
-    tail: Coordinate,
+    knots: Vec<Coordinate>,
     visited: HashSet<Coordinate>,
 }
 
 impl Map {
-    fn new() -> Self {
+    fn new(knots: usize) -> Self {
+        if knots < 1 {
+            panic!("needs more knots");
+        }
+
         Self {
-            head: Coordinate::new(0, 0),
-            tail: Coordinate::new(0, 0),
+            knots: repeat(Coordinate::new(0, 0)).take(knots + 1).collect(),
             visited: HashSet::new(),
         }
     }
@@ -63,57 +72,87 @@ impl Map {
             Down => (0, -1),
             Left => (-1, 0),
         };
-        self.head.offset(dx, dy);
+        // the head knot is first, we then update
+        // all remaining knots to follow.
+        self.knots.get_mut(0).unwrap().offset(dx, dy);
 
-        self.update_tail();
-    }
+        for (headi, taili) in (0..self.knots.len()).zip(1..self.knots.len()) {
+            let head = self.knots.get(headi).unwrap();
+            let tail = self.knots.get(taili).unwrap();
 
-    fn update_tail(&mut self) {
-        match (self.head.x - self.tail.x, self.head.y - self.tail.y) {
-            // touching, OK!
-            (dx, dy) if dx.abs() <= 1 && dy.abs() <= 1 => return,
-            (0, 2) => self.tail.offset(0, 1),
-            (0, -2) => self.tail.offset(0, -1),
-            (2, 0) => self.tail.offset(1, 0),
-            (-2, 0) => self.tail.offset(-1, 0),
-            (-2, -2) => self.tail.offset(-1, -1),
-            (-2, 2) => self.tail.offset(-1, 1),
-            (2, -2) => self.tail.offset(1, -1),
-            (2, 2) => self.tail.offset(1, 1),
-            (1, 2) | (2, 1) => self.tail.offset(1, 1),
-            (-2, 1) | (-1, 2) => self.tail.offset(-1, 1),
-            (2, -1) | (1, -2) => self.tail.offset(1, -1),
-            (-2, -1) | (-1, -2) => self.tail.offset(-1, -1),
-            (dx, dy) => panic!(
-                "unknown case ({}, {}): {:?} => {:?}",
-                dx, dy, self.head, self.tail
-            ),
+            let newtail = self.update_pair(head, tail.clone());
+            *self.knots.get_mut(taili).unwrap() = newtail;
         }
 
-        self.visited.insert(self.tail.clone());
+        self.visited.insert(self.knots.last().unwrap().clone());
+    }
+
+    // modifies the psat tail given a moved head
+    fn update_pair(&self, head: &Coordinate, mut tail: Coordinate) -> Coordinate {
+        match (head.x - tail.x, head.y - tail.y) {
+            // touching, OK!
+            (dx, dy) if dx.abs() <= 1 && dy.abs() <= 1 => return tail,
+            (0, 2) => tail.offset(0, 1),
+            (0, -2) => tail.offset(0, -1),
+            (2, 0) => tail.offset(1, 0),
+            (-2, 0) => tail.offset(-1, 0),
+            (-2, -2) => tail.offset(-1, -1),
+            (-2, 2) => tail.offset(-1, 1),
+            (2, -2) => tail.offset(1, -1),
+            (2, 2) => tail.offset(1, 1),
+            (1, 2) | (2, 1) => tail.offset(1, 1),
+            (-2, 1) | (-1, 2) => tail.offset(-1, 1),
+            (2, -1) | (1, -2) => tail.offset(1, -1),
+            (-2, -1) | (-1, -2) => tail.offset(-1, -1),
+            (dx, dy) => panic!("unknown case ({}, {}): {:?} => {:?}", dx, dy, head, tail),
+        }
+
+        tail
     }
 }
 
 impl std::fmt::Display for Map {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let px = max(max(self.head.x, self.tail.x), 10) + 1;
-        let py = max(max(self.head.y, self.tail.y), 10) + 1;
-        let nx = min(min(self.head.x, self.tail.x), 0) - 1;
-        let ny = min(min(self.head.y, self.tail.y), 0) - 1;
+        let mut px = 10;
+        let mut py = 10;
+        let mut nx = 0;
+        let mut ny = 0;
 
-        println!("{:?} and {:?}", ny..py, nx..px);
+        for knot in &self.knots {
+            px = max(knot.x, px) + 1;
+            py = max(knot.y, py) + 1;
+            nx = min(knot.x, nx) - 1;
+            ny = min(knot.y, ny) - 1;
+        }
+
+        let mut output = vec![];
+        output.resize((px - nx) as usize, vec![]);
+        for row in &mut output {
+            row.resize((py - ny) as usize, ".".to_string());
+        }
+
         // render in quadrant 1, flip bounds
         for y in (ny..py).rev() {
             for x in nx..px {
-                if self.head.x == x && self.head.y == y {
-                    write!(f, "H")?;
-                } else if self.tail.x == x && self.tail.y == y {
-                    write!(f, "T")?;
-                } else {
-                    write!(f, ".")?;
+                for (i, knot) in self.knots.iter().enumerate() {
+                    let c = output
+                        .get_mut((x - nx) as usize)
+                        .unwrap()
+                        .get_mut((y - ny) as usize)
+                        .unwrap();
+
+                    if knot.x == x && knot.y == y {
+                        *c = i.to_string();
+                    }
                 }
             }
-            write!(f, "\n")?;
+        }
+
+        for row in output {
+            for c in row {
+                write!(f, "{}", c)?;
+            }
+            write!(f, "{}", "\n")?;
         }
 
         std::fmt::Result::Ok(())
@@ -174,9 +213,34 @@ L 5
 R 2"#;
 
     let orders = parse_orders(input).unwrap();
-    let mut m = Map::new();
+    let mut m = Map::new(1);
 
     for o in orders {
         m.execute(o);
     }
+
+    assert_eq!(13, m.visited.len());
+}
+
+#[test]
+fn test_example_two() {
+    let input = r#"R 5
+U 8
+L 8
+D 3
+R 17
+D 10
+L 25
+U 20"#;
+
+    let orders = parse_orders(input).unwrap();
+    let mut m = Map::new(9);
+
+    println!("{}", m);
+    for o in orders {
+        m.execute(o);
+        println!("{}", m);
+    }
+
+    assert_eq!(36, m.visited.len());
 }
