@@ -1,7 +1,4 @@
-use std::convert::TryFrom;
 use std::iter::repeat;
-
-use anyhow::{anyhow, Result};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Coordinate {
@@ -98,6 +95,7 @@ impl RayIterator {
         RayIterator { items: v }
     }
 
+    #[allow(dead_code)]
     fn from_iter<I: Iterator<Item = (usize, usize)>>(i: I) -> Self {
         Self::from(i.collect())
     }

@@ -22,7 +22,6 @@ pub fn run(input: String) -> Result<()> {
 
     println!("number of visible trees: {}", count_vismap(&vis_map));
 
-    /*
     let scenic_map = scenic_score_map(&input)?;
     let max: ((usize, usize), u32) = scenic_map
         .iter()
@@ -47,7 +46,6 @@ pub fn run(input: String) -> Result<()> {
         "tree with highest scenic score has {} at ({}, {})",
         max.1, max.0 .0, max.0 .1
     );
-    */
 
     Ok(())
 }
@@ -107,10 +105,10 @@ fn get_vismap(input: &str) -> Result<Vec<Vec<bool>>> {
                     .get(x)
                     .expect(&format!("failed to get x @ ({}, {})", x, y));
 
-                println!(
-                    "({}, {}) ==> ({}, {}): {} >= {:?}",
-                    src.x, src.y, x, y, tree, last
-                );
+                // println!(
+                //     "({}, {}) ==> ({}, {}): {} >= {:?}",
+                //     src.x, src.y, x, y, tree, last
+                // );
                 match last {
                     Some(l) if l >= tree => continue,
                     _ => (),
@@ -249,7 +247,6 @@ ttttt"#;
 
 // Pt 2 follows. it bad.
 
-/*
 // calculate how many trees are visible from a position
 fn scenic_score_map(input: &String) -> Result<Vec<Vec<u32>>> {
     let grid = parse_trees(input)?;
@@ -261,46 +258,138 @@ fn scenic_score_map(input: &String) -> Result<Vec<Vec<u32>>> {
         row.resize(width, 0);
         scenic_map.push(row);
     }
+    let dimens = (width, grid.len());
 
     // O(N^2) yikes. optimizing this after writing a dumb pt 1 feels even worse :D
-    for x in 0..grid.len() {
-        for y in 0..grid.get(x).unwrap().len() {
+    for y in 0..grid.len() {
+        for x in 0..width {
             let mut vis = 1;
+            let our_size = grid.get(y).unwrap().get(x).unwrap();
 
-            for dir in iter_dirs(&grid, Some((x, y))) {
-                let mut last_largest = None;
+            for dir in rays_from_point(&dimens, (x, y).into()) {
                 // product of all directions, sum this line
                 let mut line = 0;
-                for ((tx, ty), t) in dir {
-                    println!("({}, {}) => {} @ ({}, {})", x, y, t, tx, ty);
-                    match last_largest {
-                        Some(l) if t > l => {
-                            line += 1;
-                            last_largest = Some(t);
-                        }
-                        None => {
-                            line += 1;
-                            last_largest = Some(t);
-                        }
-                        _ => (),
+                for (tx, ty) in dir {
+                    let t = grid.get(ty).unwrap().get(tx).unwrap();
+
+                    line += 1;
+                    if t >= our_size {
+                        break;
                     }
                 }
 
                 if line != 0 {
                     vis = vis * line;
                 }
-                println!("");
             }
-            println!("===============================");
 
-            let row = scenic_map.get_mut(x).unwrap();
-            *row.get_mut(y).unwrap() = vis;
+            let row = scenic_map.get_mut(y).unwrap();
+            *row.get_mut(x).unwrap() = vis;
         }
     }
 
     Ok(scenic_map)
 }
-*/
 
 #[test]
-fn scenic_score_lines() {}
+fn minimal_scenic_score_lines() {
+    let test = r#"12
+34"#;
+    let expected = vec![vec![1, 1], vec![1, 1]];
+
+    assert_scenic_tree_eq(expected, scenic_score_map(&test.to_string()).unwrap());
+}
+
+#[test]
+fn fourxfour_blind_score_lines() {
+    let test = r#"1234
+1234
+1234
+1234"#;
+    let expected = vec![
+        vec![1, 1, 2, 3],
+        vec![1, 1, 2, 3],
+        vec![1, 1, 2, 3],
+        vec![1, 1, 2, 3],
+    ];
+
+    assert_scenic_tree_eq(expected, scenic_score_map(&test.to_string()).unwrap());
+}
+
+#[test]
+fn fourxfour_big_trees() {
+    let test = r#"1243
+9234
+1234
+9284"#;
+    let expected = vec![
+        vec![1, 1, 6, 1],
+        vec![6, 1, 2, 3],
+        vec![1, 1, 2, 3],
+        vec![6, 1, 6, 1],
+    ];
+
+    assert_scenic_tree_eq(expected, scenic_score_map(&test.to_string()).unwrap());
+}
+
+#[test]
+fn test_examples_scenic() {
+    let test = r#"30373
+25512
+65332
+33549
+35390"#;
+
+    let scores = scenic_score_map(&test.to_string()).unwrap();
+    assert_eq!(4, *scores.get(1).unwrap().get(2).unwrap());
+
+    let test = r#"30373
+25512
+65332
+33549
+35390"#;
+    let scores = scenic_score_map(&test.to_string()).unwrap();
+    assert_eq!(8, *scores.get(3).unwrap().get(2).unwrap());
+}
+
+#[cfg(test)]
+fn assert_scenic_tree_eq(expected: Vec<Vec<u32>>, actual: Vec<Vec<u32>>) {
+    let zip_rows = expected.iter().enumerate().zip(actual.iter());
+    let mut failed: Option<(usize, usize, u32, u32)> = None;
+    for ((ey, erow), arow) in zip_rows {
+        if failed.is_some() {
+            break;
+        }
+        for ((ex, esc), asc) in erow.iter().enumerate().zip(arow.iter()) {
+            if esc != asc {
+                failed = Some((ex, ey, *esc, *asc));
+                break;
+            }
+        }
+    }
+
+    if let Some((fx, fy, esc, asc)) = failed {
+        println!("expected:");
+        for erow in expected {
+            for score in erow {
+                print!("({:>3})", score);
+            }
+            println!("")
+        }
+
+        println!("\nactual:");
+        for arow in actual {
+            for score in arow {
+                print!("({:>3})", score);
+            }
+            println!("")
+        }
+
+        println!(
+            "score at ({}, {}) failed equality: {} != {}",
+            fx, fy, esc, asc
+        );
+    }
+
+    assert_eq!(None, failed);
+}
