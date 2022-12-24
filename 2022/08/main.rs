@@ -1,9 +1,13 @@
+mod iter;
+
 use anyhow::{anyhow, Result};
+
+use iter::rays_from_point;
+use std::iter::repeat;
 
 pub fn run(input: String) -> Result<()> {
     let vis_map = get_vismap(&input)?;
 
-    /*
     println!("visibility map:");
     for x in 0..vis_map.len() {
         for y in 0..vis_map.len() {
@@ -15,18 +19,37 @@ pub fn run(input: String) -> Result<()> {
         }
         println!("")
     }
-    */
 
     println!("number of visible trees: {}", count_vismap(&vis_map));
 
+    /*
     let scenic_map = scenic_score_map(&input)?;
+    let max: ((usize, usize), u32) = scenic_map
+        .iter()
+        .enumerate()
+        .flat_map(|(x, row)| {
+            row.iter()
+                .enumerate()
+                .map(move |(y, score)| ((x.clone(), y), score.clone()))
+        })
+        .max_by_key(|(_, s)| s.clone())
+        .unwrap();
+
+    println!("scenic score map:");
+    for x in 0..vis_map.len() {
+        for y in 0..vis_map.len() {
+            print!("({:>3})", scenic_map.get(x).unwrap().get(y).unwrap());
+        }
+        println!("")
+    }
+
+    println!(
+        "tree with highest scenic score has {} at ({}, {})",
+        max.1, max.0 .0, max.0 .1
+    );
+    */
 
     Ok(())
-}
-
-// calculate how many trees are visible from a position
-fn scenic_score_map(input: &String) -> Result<Vec<Vec<u32>>> {
-    Ok(vec![])
 }
 
 fn parse_trees(input: &str) -> Result<Vec<Vec<u8>>> {
@@ -45,17 +68,67 @@ fn parse_trees(input: &str) -> Result<Vec<Vec<u8>>> {
         .collect::<Result<Vec<_>>>()
 }
 
+// get vismap returns a truth map of what trees are visible from
+// the edge by !! (y => x => true)
 fn get_vismap(input: &str) -> Result<Vec<Vec<bool>>> {
     let grid = parse_trees(input)?;
+
     // array of bits for whether a tree is visible
     let mut vis_map: Vec<Vec<bool>> = Vec::with_capacity(grid.len());
     let width = grid.iter().map(|x| x.len()).max().unwrap();
+    let dimens = (width as usize, grid.len() as usize);
+
     for _ in 0..grid.len() {
         let mut row = vec![];
         row.resize(width, false);
         vis_map.push(row);
     }
 
+    let edgepoints = (0..grid.len())
+        .zip(repeat(0))
+        .chain(repeat(0).zip(1..width))
+        .chain(repeat(width - 1).zip(1..grid.len()))
+        .chain((1..width).zip(repeat(grid.len() - 1)))
+        .map(Into::into)
+        .collect::<Vec<iter::Coordinate>>();
+
+    for src in edgepoints {
+        let start = grid.get(src.y).unwrap().get(src.x).unwrap();
+        *vis_map.get_mut(src.y).unwrap().get_mut(src.x).unwrap() = true;
+
+        // walk the edges and then ray out.
+        for dir in rays_from_point(&dimens, src) {
+            let mut last = Some(start);
+
+            for (x, y) in dir {
+                let tree = grid
+                    .get(y)
+                    .expect(&format!("failed to get y={}", y))
+                    .get(x)
+                    .expect(&format!("failed to get x @ ({}, {})", x, y));
+
+                println!(
+                    "({}, {}) ==> ({}, {}): {} >= {:?}",
+                    src.x, src.y, x, y, tree, last
+                );
+                match last {
+                    Some(l) if l >= tree => continue,
+                    _ => (),
+                }
+
+                let vm_row = vis_map.get_mut(y).unwrap();
+                *vm_row
+                    .get_mut(x)
+                    .expect(&format!("could not fetch ({},{}) from vismap", x, y)) = true;
+                last = Some(tree);
+            }
+        }
+
+        println!("===");
+    }
+
+    /*
+    println!("=================================");
     for dir in iter_dirs(&grid, None) {
         let mut last: Option<u8> = None;
         for ((x, y), tree) in dir {
@@ -71,148 +144,9 @@ fn get_vismap(input: &str) -> Result<Vec<Vec<bool>>> {
             last = Some(tree);
         }
     }
+    */
 
     Ok(vis_map)
-}
-
-// iter_dirs returns a directional iterator which walks the 2-d grid
-// from a point in all four directions, row-by-row and column-by-column.
-// It does not include the source point in iteration.
-// If None is provided for src, iteration is done for all rows and columns from the edge.
-fn iter_dirs(grid: &Vec<Vec<u8>>, src: Option<(usize, usize)>) -> DirectionalGridIterator {
-    let width = grid.get(0).unwrap().len();
-    println!("dimens: [{}, {}]", width, grid.len());
-    let (sx, sy) = match src {
-        Some((x, y)) => (x, y),
-        None => (0, 0),
-    };
-
-    // 1 2 3 4 |
-    // 4 3 2 1 v
-    // -->
-    let pos_xy_iter = grid
-        .iter()
-        .enumerate()
-        .filter(|(y, _)| src.is_none() || y > &sy)
-        .map(|(y, row)| {
-            let iter = row
-                .iter()
-                .enumerate()
-                .filter(|(x, _)| src.is_none() || x > &sx)
-                .map(|(x, cell)| ((x, y), cell.clone()))
-                .collect::<Vec<_>>();
-            iter.into_iter()
-        })
-        .map(RayIterator::from_iter);
-    // 1 2 3 4  |
-    // 4 3 2 1  v
-    //    <---
-    let neg_xy_iter = grid
-        .iter()
-        .enumerate() //
-        .rev()
-        .filter(|(y, _)| src.is_none() || y > &sy)
-        .map(|(y, row)| {
-            let iter = row
-                .iter()
-                .enumerate()
-                .rev()
-                .filter(|(x, _)| src.is_none() || x < &sx)
-                .map(|(x, cell)| ((x, y.clone()), cell.clone()))
-                .collect::<Vec<_>>();
-            iter.into_iter()
-        })
-        .map(RayIterator::from_iter);
-
-    let mut pos_yx_iter = Vec::with_capacity(grid.len());
-    let mut neg_yx_iter = Vec::with_capacity(grid.len());
-    for x in 0..width {
-        // 1 2 3 4 |
-        // 4 3 2 1 v
-        // <----
-
-        let sy = src.map(|coords| coords.1).unwrap_or(width);
-        if src.is_none() || x < sx {
-            pos_yx_iter.push(RayIterator::from_iter((0..sy).into_iter().map(|y| {
-                (
-                    (x, y),
-                    grid.get(y)
-                        .and_then(|row| row.get(x))
-                        .expect(&format!(
-                            "failed to get row/col in pos yx iter: ({}, {})",
-                            x, y
-                        ))
-                        .clone(),
-                )
-            })));
-        }
-
-        if src.is_none() || x > sx {
-            // 1 2 3 4 ^
-            // 4 3 2 1 |
-            // ---->
-
-            let sy = src.map(|coords| coords.1 + 1).unwrap_or(0);
-            neg_yx_iter.push(RayIterator::from_iter(
-                (sy..grid.len()).into_iter().rev().map(|y| {
-                    (
-                        (x, y),
-                        grid.get(y)
-                            .and_then(|row| row.get(x))
-                            .expect(&format!(
-                                "failed to get row/col in neg yx iter: ({}, {})",
-                                x, y
-                            ))
-                            .clone(),
-                    )
-                }),
-            ));
-        }
-    }
-
-    let mut iters: Vec<RayIterator> = pos_xy_iter.chain(neg_xy_iter).collect();
-    iters.extend(pos_yx_iter);
-    iters.extend(neg_yx_iter);
-
-    DirectionalGridIterator { iters: iters }
-}
-
-struct DirectionalGridIterator {
-    iters: Vec<RayIterator>,
-}
-
-impl Iterator for DirectionalGridIterator {
-    type Item = RayIterator;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iters.pop()
-    }
-}
-
-// RayIterator iterates over trees in a single direction.
-struct RayIterator {
-    // stored in reverse so we just pop
-    items: Vec<((usize, usize), u8)>,
-}
-
-impl RayIterator {
-    fn from(mut v: Vec<((usize, usize), u8)>) -> Self {
-        v.reverse();
-        RayIterator { items: v }
-    }
-
-    fn from_iter<I: Iterator<Item = ((usize, usize), u8)>>(i: I) -> Self {
-        Self::from(i.collect())
-    }
-}
-
-impl Iterator for RayIterator {
-    // ((absolute coords), tree_height)
-    type Item = ((usize, usize), u8);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.items.pop()
-    }
 }
 
 fn count_vismap<T: std::borrow::Borrow<Vec<Vec<bool>>>>(vismap: T) -> usize {
@@ -243,8 +177,44 @@ fn test_taller_vis() {
 42564
 46534
 44444"#;
+    let answer = r#"ttttt
+tttft
+tfttt
+tttft
+ttttt"#;
 
-    assert_eq!(22, get_vismap(test).map(count_vismap).unwrap());
+    assert_trees_eq(answer, get_vismap(test).unwrap());
+}
+
+// tests a tiny case where the middle tree is hidden
+#[test]
+fn test_tiny_hidden() {
+    let test = r#"999
+919
+999"#;
+    let answer = r#"ttt
+tft
+ttt"#;
+
+    assert_trees_eq(answer, get_vismap(test).unwrap());
+}
+
+#[cfg(test)]
+fn assert_trees_eq<T: std::borrow::Borrow<Vec<Vec<bool>>>>(expected: &str, actual: T) {
+    let res = actual
+        .borrow()
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|t| if *t { "t" } else { "f" })
+                .collect::<Vec<_>>()
+                .join("")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    println!("expected:\n{}\n\nactual:\n{}", expected, res);
+    assert_eq!(expected, res);
 }
 
 // tests a case where trees sawtooth in size and can't be seen in other dirs
@@ -267,6 +237,70 @@ fn test_border_varying_vis() {
 80003
 70002
 61231"#;
-
-    assert_eq!(13, get_vismap(test).map(count_vismap).unwrap());
+    let expected = r#"ttttt
+tffft
+tffft
+tffft
+ttttt"#;
+    let res = get_vismap(test).unwrap();
+    assert_trees_eq(expected, res);
+    assert_eq!(16, get_vismap(test).map(count_vismap).unwrap());
 }
+
+// Pt 2 follows. it bad.
+
+/*
+// calculate how many trees are visible from a position
+fn scenic_score_map(input: &String) -> Result<Vec<Vec<u32>>> {
+    let grid = parse_trees(input)?;
+
+    let mut scenic_map: Vec<Vec<u32>> = Vec::with_capacity(grid.len());
+    let width = grid.iter().map(|x| x.len()).max().unwrap();
+    for _ in 0..grid.len() {
+        let mut row = vec![];
+        row.resize(width, 0);
+        scenic_map.push(row);
+    }
+
+    // O(N^2) yikes. optimizing this after writing a dumb pt 1 feels even worse :D
+    for x in 0..grid.len() {
+        for y in 0..grid.get(x).unwrap().len() {
+            let mut vis = 1;
+
+            for dir in iter_dirs(&grid, Some((x, y))) {
+                let mut last_largest = None;
+                // product of all directions, sum this line
+                let mut line = 0;
+                for ((tx, ty), t) in dir {
+                    println!("({}, {}) => {} @ ({}, {})", x, y, t, tx, ty);
+                    match last_largest {
+                        Some(l) if t > l => {
+                            line += 1;
+                            last_largest = Some(t);
+                        }
+                        None => {
+                            line += 1;
+                            last_largest = Some(t);
+                        }
+                        _ => (),
+                    }
+                }
+
+                if line != 0 {
+                    vis = vis * line;
+                }
+                println!("");
+            }
+            println!("===============================");
+
+            let row = scenic_map.get_mut(x).unwrap();
+            *row.get_mut(y).unwrap() = vis;
+        }
+    }
+
+    Ok(scenic_map)
+}
+*/
+
+#[test]
+fn scenic_score_lines() {}
