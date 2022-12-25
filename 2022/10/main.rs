@@ -17,6 +17,17 @@ pub fn run(input: String) -> Result<()> {
             .try_fold(0, |acc, c| c.map(|c| c + acc))?,
     );
 
+    for row in c.display {
+        for c in row {
+            if c {
+                print!("#");
+            } else {
+                print!(".");
+            }
+        }
+        println!("");
+    }
+
     Ok(())
 }
 
@@ -63,6 +74,7 @@ fn process_ops(ops: Vec<Op>) -> Computer {
         x: 1,
         c: 0,
         history: HashMap::new(),
+        display: vec![],
     };
     for op in ops {
         for _ in 0..op.cycles() {
@@ -84,15 +96,12 @@ fn process_ops(ops: Vec<Op>) -> Computer {
 struct Computer {
     x: i32,
     c: usize,
-    // storing only 20th + (counter - 20) % 40 == 0 makes sense too
-    history: HashMap<usize, i32>, // sparse, contains only MEASURED_POINTs
+    // pixels drawn are true
+    display: Vec<[bool; 40]>,
+    history: HashMap<usize, i32>,
 }
 
 impl Computer {
-    //    fn cycle_step(&mut self) {
-    //        self.counter += 1;
-    //        self.history.push(self.x);
-    //    }
     fn get_value_at_cycle(&self, cycle: usize) -> Result<&i32> {
         self.history
             .get(&cycle)
@@ -100,7 +109,21 @@ impl Computer {
     }
 
     fn tick(&mut self) {
+        // pos of center of current pixel being drawn
+        let x = self.c % 40;
+        if (x as i32 - self.x as i32).abs() <= 1 {
+            let row = self.c / 40;
+            if row >= self.display.len() {
+                self.display.resize(row + 1, [false; 40]);
+            }
+            self.display
+                .get_mut(row)
+                .ok_or_else(|| anyhow!("failed to get row {}", row))
+                .unwrap()[x] = true;
+        }
+
         self.c += 1;
+
         if should_sample(&self.c) {
             self.history.insert(self.c, self.x);
         }
@@ -131,7 +154,7 @@ fn test_example_1() {
     }
 
     println!(
-        "{:?}\t{:?}\n{:?}",
+        "{:?}\t{:?}",
         vec![20, 60, 100, 140, 180, 220]
             .into_iter()
             .map(|cycle| c.get_value_at_cycle(cycle))
@@ -140,9 +163,6 @@ fn test_example_1() {
         vec![20, 60, 100, 140, 180, 220]
             .into_iter()
             .map(|cycle| cycle as i32 * c.get_value_at_cycle(cycle).unwrap())
-            .collect::<Vec<_>>(),
-        (218..222)
-            .map(|cycle| (cycle, c.get_value_at_cycle(cycle).unwrap()))
             .collect::<Vec<_>>(),
     );
     assert_eq!(
