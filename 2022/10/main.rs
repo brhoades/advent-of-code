@@ -1,16 +1,18 @@
-use anyhow::{anyhow, bail, Error, Result};
 use std::collections::HashMap;
 use std::str::FromStr;
+
+use anyhow::{anyhow, bail, Error, Result};
+
+const MEASURED_POINTS: [usize; 6] = [20, 60, 100, 140, 180, 220];
 
 pub fn run(input: String) -> Result<()> {
     let ops = parse_ops(input).unwrap();
     let c = process_ops(ops);
 
-    let pts = vec![20, 60, 100, 140, 180, 220];
-
     println!(
         "signal strength sum: {}",
-        pts.iter()
+        MEASURED_POINTS
+            .iter()
             .map(|cycle| c.get_value_at_cycle(*cycle).map(|v| v * *cycle as i32))
             .try_fold(0, |acc, c| c.map(|c| c + acc))?,
     );
@@ -27,7 +29,6 @@ enum Op {
 use Op::*;
 
 impl Op {
-    #[allow(dead_code)]
     fn cycles(&self) -> u32 {
         match self {
             Addx(_) => 2,
@@ -84,7 +85,7 @@ struct Computer {
     x: i32,
     c: usize,
     // storing only 20th + (counter - 20) % 40 == 0 makes sense too
-    history: HashMap<usize, i32>, // dense, counter => x
+    history: HashMap<usize, i32>, // sparse, contains only MEASURED_POINTs
 }
 
 impl Computer {
@@ -95,13 +96,19 @@ impl Computer {
     fn get_value_at_cycle(&self, cycle: usize) -> Result<&i32> {
         self.history
             .get(&cycle)
-            .ok_or_else(|| anyhow!("unknown cycle: {}", cycle))
+            .ok_or_else(|| anyhow!("untracked cycle: {}", cycle))
     }
 
     fn tick(&mut self) {
         self.c += 1;
-        self.history.insert(self.c, self.x);
+        if should_sample(&self.c) {
+            self.history.insert(self.c, self.x);
+        }
     }
+}
+
+fn should_sample(c: &usize) -> bool {
+    *c >= 20 && *c <= 220 && (*c - 20) % 40 == 0
 }
 
 #[test]
