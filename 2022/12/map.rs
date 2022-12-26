@@ -1,4 +1,5 @@
 use std::fmt;
+use std::io::{self, Write};
 use std::str::FromStr;
 
 use anyhow::{anyhow, bail, Error, Result};
@@ -161,7 +162,7 @@ impl VisitedMap {
     }
 
     pub fn score(&self) -> usize {
-        self.score
+        self.score - 1 // don't count start
     }
 
     pub fn get(&self, x: usize, y: usize) -> Result<&bool> {
@@ -185,4 +186,14 @@ impl fmt::Display for VisitedMap {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.map)
     }
+}
+
+// writes a map to stdout, clearning the screen, and flushes
+// only once all output is ready to avoid flashes.
+pub fn batch_print<T: fmt::Display>(m: &T) {
+    let mut handle = io::stdout().lock();
+    let s = format!("{}", m);
+    handle.write_all(b"\x1B[2J\x1B[1;1H").unwrap();
+    handle.write_all(s.as_bytes()).unwrap();
+    handle.flush().unwrap();
 }

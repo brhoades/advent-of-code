@@ -1,22 +1,34 @@
-use super::map::{Map, Tile, Tile::*, VisitedMap};
+use super::map::{batch_print, Map, Tile, Tile::*, VisitedMap};
 
-// recursively calls self to find shortest path
-pub fn find_shortest_path_brute(m: &Map<Tile>) -> Option<VisitedMap> {
-    let mut visited = VisitedMap::new(m.dimensions.0, m.dimensions.1);
+fn find_start(m: &Map<Tile>) -> (usize, usize) {
+    find(m, |t| *t == Start)
+}
 
-    // pull out the start tile with a scan
-    let (x, y) = m
-        .iter_rows()
+fn find_end(m: &Map<Tile>) -> (usize, usize) {
+    find(m, |t| *t == End)
+}
+
+fn find<F: Fn(&Tile) -> bool>(m: &Map<Tile>, heuristic: F) -> (usize, usize) {
+    m.iter_rows()
         .enumerate()
         .flat_map(|(y, row)| {
             row.iter()
                 .enumerate()
-                .filter(|(_, t)| **t == Start)
+                .filter(|(_, t)| heuristic(t))
                 .map(|(x, _)| (x, y))
                 .collect::<Vec<_>>()
         })
         .next()
-        .unwrap();
+        .unwrap()
+}
+
+// recursively calls self to find shortest path
+#[allow(dead_code)]
+pub fn find_shortest_path_brute(m: &Map<Tile>) -> Option<VisitedMap> {
+    let mut visited = VisitedMap::new(m.dimensions.0, m.dimensions.1);
+
+    // pull out the start tile with a scan
+    let (x, y) = find_start(m);
 
     // walk results and return the one with the lowest cost
     let mut shortest = None;
@@ -27,6 +39,7 @@ pub fn find_shortest_path_brute(m: &Map<Tile>) -> Option<VisitedMap> {
 
 // visited is x => y => bool
 // returns a list of path vecs
+#[allow(dead_code)]
 fn find_shortest_path_brute_inner(
     m: &Map<Tile>,
     visited: &mut VisitedMap,
@@ -38,7 +51,10 @@ fn find_shortest_path_brute_inner(
         End => {
             // DONE! Clone the visited and return it up so it bubbles to our
             // caller.
-            return vec![visited.clone()];
+            let v = visited.clone();
+            batch_print(&v);
+            visited.unset(pos.0, pos.1).unwrap();
+            return vec![v];
         }
         Start => 255, // coming from start, can go to any tile
         Walkable(c) => *c,
@@ -69,16 +85,21 @@ fn find_shortest_path_brute_inner(
         .into_iter()
         .filter(|(x, y)| !*visited.get(*x, *y).unwrap())
         .filter(|(x, y)| match m.get(*x, *y).unwrap() {
-            Start => unreachable!("evaluation error ({}, {}) => ({}, {}): shouldn't be able to visit start again, is visited", pos.0, pos.1, x, y),
-            Walkable(c) => current_cost as i16 - *c as i16 >= -1,
-            End => true,
+            Start => {
+                println!("{}", visited);
+                unreachable!("evaluation error ({}, {}) => ({}, {}): shouldn't be able to visit start again, is visited", pos.0, pos.1, x, y)
+            },
+            Walkable(c) => (current_cost as i16 - *c as i16) >= -1,
+            End => (current_cost as i16 - ('z' as u8 - 'a' as u8) as i16) >= -1,
         })
         .collect::<Vec<_>>();
 
+    print!("\x1B[2J\x1B[1;1H");
     println!("{:?} => {:?}:\n{}", (pos.0, pos.1), steps, visited);
+
     let mut results = vec![];
     for step in steps {
-        for mut p in find_shortest_path_brute_inner(m, visited, step, shortest) {
+        for p in find_shortest_path_brute_inner(m, visited, step, shortest) {
             match shortest {
                 Some(l) if *l > p.score() => *shortest = Some(p.score()),
                 None => *shortest = Some(p.score()),
@@ -90,5 +111,96 @@ fn find_shortest_path_brute_inner(
 
     // shared with parent. undo modification
     visited.unset(pos.0, pos.1).unwrap();
+    results
+}
+
+// recursively calls self to find shortest path
+pub fn find_shortest_path_dijkstra(m: &Map<Tile>) -> Option<VisitedMap> {
+    let mut path = VisitedMap::new(m.dimensions.0, m.dimensions.1);
+    let mut visited = Map::<Option<usize>>::new_dense(m.dimensions.0, m.dimensions.1);
+
+    let (x, y) = find_start(m);
+    let end = find_end(m);
+
+    // walk paths and return the one with the lowest cost
+    find_shortest_path_dijkstra_inner(m, (x, y), end, &mut path, &mut visited)
+        .into_iter()
+        .min_by_key(|path| path.score())
+}
+
+// visited is x => y => bool
+// returns a list of path vecs
+fn find_shortest_path_dijkstra_inner(
+    m: &Map<Tile>,
+    pos: (usize, usize),
+    end: (usize, usize),
+    path: &mut VisitedMap,
+    visited: &mut Map<Option<usize>>,
+) -> Vec<VisitedMap> {
+    let (x, y) = pos;
+
+    path.set(x, y).unwrap();
+
+    let current_cost = match m.get(x, y).unwrap() {
+        End => {
+            // DONE! Clone the visited and return it up so it bubbles to our
+            // caller.
+            let v = path.clone();
+            batch_print(&v);
+            path.unset(x, y).unwrap();
+            return vec![v];
+        }
+        Start => 255, // coming from start, can go to any tile
+        Walkable(c) => *c,
+    };
+
+    let mut choices = vec![];
+    if x != 0 && !path.get(x - 1, y).unwrap() {
+        choices.push((x - 1, y));
+    }
+    if x != m.dimensions.0 - 1 && !path.get(x + 1, y).unwrap() {
+        choices.push((x + 1, y));
+    }
+    if y != 0 && !path.get(x, y - 1).unwrap() {
+        choices.push((x, y - 1));
+    }
+    if y != m.dimensions.1 - 1 && !path.get(x, y + 1).unwrap() {
+        choices.push((x, y + 1));
+    }
+
+    let steps = choices
+        .into_iter()
+        .filter(|(x, y)| !*path.get(*x, *y).unwrap())
+        .filter(|(x, y)| match m.get(*x, *y).unwrap() {
+            Start => {
+                println!("{}", path);
+                unreachable!("evaluation error ({}, {}) => ({}, {}): shouldn't be able to visit start again, is visited", pos.0, pos.1, x, y);
+            },
+            Walkable(c) => (current_cost as i16 - *c as i16) >= -1,
+            End => (current_cost as i16 - ('z' as u8 - 'a' as u8) as i16) >= -1,
+        })
+        .collect::<Vec<_>>();
+
+    let mut results = vec![];
+    for step in steps {
+        match visited.get_mut(step.0, step.1).unwrap() {
+            Some(cost) if path.score() + 1 >= *cost => {
+                // println!("{} >= {}", path.score() + 1, *cost);
+                continue;
+            }
+            Some(ref mut cost) if path.score() + 1 < *cost => {
+                // println!("better cost: {} < {}", path.score() + 1, cost);
+                *cost = path.score() + 1;
+            }
+            other => *other = Some(path.score() + 1),
+        }
+
+        results.extend(find_shortest_path_dijkstra_inner(
+            m, step, end, path, visited,
+        ))
+    }
+
+    // shared with parent. undo modification
+    path.unset(x, y).unwrap();
     results
 }
