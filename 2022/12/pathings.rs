@@ -1,14 +1,14 @@
 use super::map::{batch_print, Map, Tile, Tile::*, VisitedMap};
 
-fn find_start(m: &Map<Tile>) -> (usize, usize) {
-    find(m, |t| *t == Start)
+pub fn find_start(m: &Map<Tile>) -> (usize, usize) {
+    find(m, |t| *t == Start).pop().unwrap()
 }
 
-fn find_end(m: &Map<Tile>) -> (usize, usize) {
-    find(m, |t| *t == End)
+pub fn find_end(m: &Map<Tile>) -> (usize, usize) {
+    find(m, |t| *t == End).pop().unwrap()
 }
 
-fn find<F: Fn(&Tile) -> bool>(m: &Map<Tile>, heuristic: F) -> (usize, usize) {
+pub fn find<F: Fn(&Tile) -> bool>(m: &Map<Tile>, heuristic: F) -> Vec<(usize, usize)> {
     m.iter_rows()
         .enumerate()
         .flat_map(|(y, row)| {
@@ -18,8 +18,7 @@ fn find<F: Fn(&Tile) -> bool>(m: &Map<Tile>, heuristic: F) -> (usize, usize) {
                 .map(|(x, _)| (x, y))
                 .collect::<Vec<_>>()
         })
-        .next()
-        .unwrap()
+        .collect()
 }
 
 // recursively calls self to find shortest path
@@ -56,7 +55,7 @@ fn find_shortest_path_brute_inner(
             visited.unset(pos.0, pos.1).unwrap();
             return vec![v];
         }
-        Start => 255, // coming from start, can go to any tile
+        Start => 0, // coming from start, it is 'a' == 0 cost
         Walkable(c) => *c,
     };
 
@@ -85,10 +84,7 @@ fn find_shortest_path_brute_inner(
         .into_iter()
         .filter(|(x, y)| !*visited.get(*x, *y).unwrap())
         .filter(|(x, y)| match m.get(*x, *y).unwrap() {
-            Start => {
-                println!("{}", visited);
-                unreachable!("evaluation error ({}, {}) => ({}, {}): shouldn't be able to visit start again, is visited", pos.0, pos.1, x, y)
-            },
+            Start => true, // S == a == 0 cost
             Walkable(c) => (current_cost as i16 - *c as i16) >= -1,
             End => (current_cost as i16 - ('z' as u8 - 'a' as u8) as i16) >= -1,
         })
@@ -114,18 +110,22 @@ fn find_shortest_path_brute_inner(
     results
 }
 
-// recursively calls self to find shortest path
-pub fn find_shortest_path_dijkstra(m: &Map<Tile>) -> Option<VisitedMap> {
+pub fn find_shortest_path_dijkstra_from(m: &Map<Tile>, x: usize, y: usize) -> Option<VisitedMap> {
     let mut path = VisitedMap::new(m.dimensions.0, m.dimensions.1);
     let mut visited = Map::<Option<usize>>::new_dense(m.dimensions.0, m.dimensions.1);
 
-    let (x, y) = find_start(m);
     let end = find_end(m);
 
     // walk paths and return the one with the lowest cost
     find_shortest_path_dijkstra_inner(m, (x, y), end, &mut path, &mut visited)
         .into_iter()
         .min_by_key(|path| path.score())
+}
+
+// recursively calls self to find shortest path
+pub fn find_shortest_path_dijkstra(m: &Map<Tile>) -> Option<VisitedMap> {
+    let st = find_start(m);
+    find_shortest_path_dijkstra_from(m, st.0, st.1)
 }
 
 // visited is x => y => bool
@@ -150,7 +150,7 @@ fn find_shortest_path_dijkstra_inner(
             path.unset(x, y).unwrap();
             return vec![v];
         }
-        Start => 255, // coming from start, can go to any tile
+        Start => 0, // coming from start, it is 'a' == 0 cost
         Walkable(c) => *c,
     };
 
@@ -172,10 +172,7 @@ fn find_shortest_path_dijkstra_inner(
         .into_iter()
         .filter(|(x, y)| !*path.get(*x, *y).unwrap())
         .filter(|(x, y)| match m.get(*x, *y).unwrap() {
-            Start => {
-                println!("{}", path);
-                unreachable!("evaluation error ({}, {}) => ({}, {}): shouldn't be able to visit start again, is visited", pos.0, pos.1, x, y);
-            },
+            Start => true, // S == a == 0 cost
             Walkable(c) => (current_cost as i16 - *c as i16) >= -1,
             End => (current_cost as i16 - ('z' as u8 - 'a' as u8) as i16) >= -1,
         })

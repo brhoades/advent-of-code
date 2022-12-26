@@ -11,7 +11,15 @@ pub fn run(input: String) -> Result<()> {
     let path = pathings::find_shortest_path_dijkstra(&map).expect("should have found a path");
     println!("found path: \n{}", path);
 
-    println!("path step cost: {}", path.score());
+    println!("====== part 2 ======");
+    let shortest = pathings::find(&map, |t| *t == Tile::Walkable(0)) // a == 0 cost
+        .into_iter()
+        .filter_map(|(x, y)| pathings::find_shortest_path_dijkstra_from(&map, x, y))
+        .min_by_key(|p| p.score());
+    println!(
+        "shortest path step cost: {}",
+        shortest.expect("should have found a path").score()
+    );
 
     Ok(())
 }
