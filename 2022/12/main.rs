@@ -34,7 +34,8 @@ abdefghi"#;
     let map: Map<Tile> = input.parse().expect("should have parsed the map");
 
     let path = pathings::find_shortest_path_brute(&map).expect("should have found a path");
-    println!("{}", path);
+
+    assert_eq!(31, path.score());
 }
 
 #[test]
@@ -47,6 +48,5 @@ abdefghi"#;
     let map: Map<Tile> = input.parse().expect("should have parsed the map");
 
     let path = pathings::find_shortest_path_dijkstra(&map).expect("should have found a path");
-    println!("{}", path);
     assert_eq!(31, path.score());
 }

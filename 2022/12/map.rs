@@ -190,6 +190,7 @@ impl fmt::Display for VisitedMap {
 
 // writes a map to stdout, clearning the screen, and flushes
 // only once all output is ready to avoid flashes.
+#[allow(dead_code)]
 pub fn batch_print<T: fmt::Display>(m: &T) {
     let mut handle = io::stdout().lock();
     let s = format!("{}", m);

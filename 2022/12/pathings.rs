@@ -1,4 +1,4 @@
-use super::map::{batch_print, Map, Tile, Tile::*, VisitedMap};
+use super::map::{Map, Tile, Tile::*, VisitedMap};
 
 pub fn find_start(m: &Map<Tile>) -> (usize, usize) {
     find(m, |t| *t == Start).pop().unwrap()
@@ -51,7 +51,6 @@ fn find_shortest_path_brute_inner(
             // DONE! Clone the visited and return it up so it bubbles to our
             // caller.
             let v = visited.clone();
-            batch_print(&v);
             visited.unset(pos.0, pos.1).unwrap();
             return vec![v];
         }
@@ -89,9 +88,6 @@ fn find_shortest_path_brute_inner(
             End => (current_cost as i16 - ('z' as u8 - 'a' as u8) as i16) >= -1,
         })
         .collect::<Vec<_>>();
-
-    print!("\x1B[2J\x1B[1;1H");
-    println!("{:?} => {:?}:\n{}", (pos.0, pos.1), steps, visited);
 
     let mut results = vec![];
     for step in steps {
@@ -146,7 +142,6 @@ fn find_shortest_path_dijkstra_inner(
             // DONE! Clone the visited and return it up so it bubbles to our
             // caller.
             let v = path.clone();
-            batch_print(&v);
             path.unset(x, y).unwrap();
             return vec![v];
         }
