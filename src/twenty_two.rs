@@ -21,3 +21,7 @@ pub(crate) mod nine {
 pub(crate) mod ten {
     include!("Y2022/10/main.rs");
 }
+
+pub(crate) mod eleven {
+    include!("Y2022/11/main.rs");
+}
