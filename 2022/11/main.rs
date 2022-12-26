@@ -1,12 +1,13 @@
 use std::str::FromStr;
 
 use anyhow::{anyhow, bail, Error, Result};
+use indicatif::{ProgressBar, ProgressStyle};
 
 pub fn run(input: String) -> Result<()> {
     let mut monkies = parse_monkies(&input)?;
 
     for _ in 0..20 {
-        monkey_a_round(&mut monkies);
+        monkey_a_round(&mut monkies, Some(3), None);
     }
 
     println!(
@@ -37,11 +38,43 @@ pub fn run(input: String) -> Result<()> {
         inspections.iter().rev().take(2).fold(1, |acc, i| acc * i),
     );
 
+    println!("=================\nPart 2\n=================");
+    let mut monkies = parse_monkies(&input)?;
+    let worry_modulus = monkies
+        .iter()
+        .map(|m| m.test_divisor)
+        .fold(1, |acc, d| acc * d);
+    let pb = ProgressBar::new(10000);
+    pb.set_style(
+        ProgressStyle::with_template(
+            "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>5}/{len:5} {msg}",
+        )
+        .unwrap()
+        .progress_chars("#>-"),
+    );
+
+    for i in 0..10000 {
+        pb.set_position(i);
+        monkey_a_round(&mut monkies, None, Some(worry_modulus));
+    }
+    pb.finish();
+
+    let mut inspections = monkies.iter().map(|m| m.inspections).collect::<Vec<_>>();
+    inspections.sort();
+    println!(
+        "Monkey business level: {}",
+        inspections.iter().rev().take(2).fold(1, |acc, i| acc * i),
+    );
+
     Ok(())
 }
 
 /// do a round of item calculations with passed monkies
-fn monkey_a_round(monkies: &mut Vec<Monkey>) {
+fn monkey_a_round(
+    monkies: &mut Vec<Monkey>,
+    worry_divisor: Option<u32>,
+    worry_modulus: Option<u32>,
+) {
     for i in 0..monkies.len() {
         let (dec, test, op, items) = {
             let m = monkies.get_mut(i).unwrap();
@@ -55,8 +88,17 @@ fn monkey_a_round(monkies: &mut Vec<Monkey>) {
         };
 
         for item in items {
-            let item = op.process(item) / 3;
-            let dest = if item % test == 0 { dec.0 } else { dec.1 };
+            let mut item = op.process(item);
+            if let Some(div) = worry_divisor {
+                item = item / div as u128
+            } else if let Some(modulus) = worry_modulus {
+                item = item % modulus as u128
+            }
+            let dest = if item % test as u128 == 0 {
+                dec.0
+            } else {
+                dec.1
+            };
 
             monkies
                 .get_mut(dest)
@@ -93,16 +135,16 @@ enum Op {
 }
 
 impl Op {
-    fn process(&self, old: u32) -> u32 {
+    fn process(&self, old: u128) -> u128 {
         use Op::*;
         use Operand::*;
 
         match self {
-            Add(Old, Num(n)) | Add(Num(n), Old) => old + n,
-            Subtract(Old, Num(n)) => old - n,
-            Subtract(Num(n), Old) => n - old,
-            Multiply(Old, Num(n)) | Multiply(Num(n), Old) => old * n,
-            Multiply(Old, Old) => old * old,
+            Add(Old, Num(n)) | Add(Num(n), Old) => old + *n as u128, //
+            Subtract(Old, Num(n)) => old - *n as u128,
+            Subtract(Num(n), Old) => *n as u128 - old,
+            Multiply(Old, Num(n)) | Multiply(Num(n), Old) => old * *n as u128,
+            Multiply(Old, Old) => old.pow(2),
             other => unimplemented!("{:?}", other),
         }
     }
@@ -110,7 +152,7 @@ impl Op {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 struct Monkey {
-    items: Vec<u32>,
+    items: Vec<u128>,
     op: Op,
     test_divisor: u32,
     // if w % test_divisor == 0 then monkey_(test_decision.0) else monkey_(test_decision.1)
@@ -139,7 +181,7 @@ fn parse_monkey(index: usize, monkey: &str) -> Result<Monkey> {
         ["Starting", "items:", rem @ ..] => {
             let rem = rem.join("");
             rem.split(",")
-                .map(|i| i.parse::<u32>())
+                .map(|i| i.parse::<u128>())
                 .collect::<std::result::Result<Vec<_>, _>>()
         }
         line => bail!("cannot parse monkey line. expected items, got: {:?}", line),
@@ -225,7 +267,7 @@ impl std::fmt::Display for Monkey {
 }
 
 #[test]
-fn test_monkey_parse_ex1() {
+fn test_monkey_example() {
     let input = r#"Monkey 0:
   Starting items: 79, 98
   Operation: new = old * 19
@@ -252,14 +294,10 @@ Monkey 3:
   Operation: new = old + 3
   Test: divisible by 17
     If true: throw to monkey 0
-    If false: throw to monkey 1"#;
+    If false: throw to monkey 1"#
+        .to_string();
 
-    let mut monkies = input
-        .split("\n\n")
-        .enumerate()
-        .map(|(i, m)| parse_monkey(i, m))
-        .collect::<Result<Vec<_>>>()
-        .unwrap();
+    let mut monkies = parse_monkies(&input).unwrap();
 
     let m = monkies.get(0).unwrap();
     assert_eq!(vec![79, 98], m.items);
@@ -268,7 +306,7 @@ Monkey 3:
     assert_eq!(2, m.test_decision.0);
     assert_eq!(3, m.test_decision.1);
 
-    monkey_a_round(&mut monkies);
+    monkey_a_round(&mut monkies, Some(3), None);
     assert_monkey_items_eq(
         vec![
             vec![20, 23, 27, 26],
@@ -280,7 +318,7 @@ Monkey 3:
     );
 
     for _ in 0..19 {
-        monkey_a_round(&mut monkies);
+        monkey_a_round(&mut monkies, Some(3), None);
     }
 
     assert_monkey_items_eq(
@@ -297,6 +335,21 @@ Monkey 3:
         vec![101, 95, 7, 105],
         monkies.iter().map(|m| m.inspections).collect::<Vec<_>>()
     );
+
+    let mut monkies = parse_monkies(&input).unwrap();
+    let worry_modulus = monkies
+        .iter()
+        .map(|m| m.test_divisor)
+        .fold(1, |acc, d| acc * d);
+
+    for _ in 0..10000 {
+        monkey_a_round(&mut monkies, None, Some(worry_modulus));
+    }
+
+    assert_eq!(
+        vec![52166, 47830, 1938, 52013],
+        monkies.iter().map(|m| m.inspections).collect::<Vec<_>>()
+    );
 }
 
 #[cfg(test)]
@@ -305,7 +358,7 @@ fn assert_monkey_items_eq(expected: Vec<Vec<u32>>, monkies: &Vec<Monkey>) {
     for (monkey, expected_items) in monkies.iter().zip(expected.iter()) {
         assert_eq!(
             *expected_items,
-            monkey.items,
+            monkey.items.iter().map(|i| *i as u32).collect::<Vec<_>>(),
             "monkey {} had different items than expected\nAll monkies:\n{}",
             monkey.index,
             monkies
