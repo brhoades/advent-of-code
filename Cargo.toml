@@ -9,3 +9,7 @@ structopt = "0.3"
 anyhow = "1.0"
 
 indicatif = "0.17.2"
+
+[dev-dependencies]
+quickcheck = "1"
+quickcheck_macros = "1"

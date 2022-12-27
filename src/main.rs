@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck;
+
 mod twenty_two;
 
 use std::fs::read_to_string;
