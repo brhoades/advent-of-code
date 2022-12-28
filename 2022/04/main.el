@@ -19,7 +19,7 @@
 ;;; sign(c-a) == sign(b-d)
 ;;;
 
-(load-file "../lib/common.el")
+(load-file "../../src/lib/common.el")
 
 (defun rng-superset (line)
   ;; "take range strings, A-B,C-D, split them out, and return 1 if one is superset and 0 otherwise"

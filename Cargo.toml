@@ -13,3 +13,6 @@ indicatif = "0.17.2"
 [dev-dependencies]
 quickcheck = "1"
 quickcheck_macros = "1"
+
+[lib]
+path = "src/lib/main.rs"

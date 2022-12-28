@@ -1,4 +1,4 @@
-(load-file "../lib/common.el")
+(load-file "../../src/lib/common.el")
 
 (setq score-table #s(hash-table
                        test equal

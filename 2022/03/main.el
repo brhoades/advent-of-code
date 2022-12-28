@@ -1,4 +1,4 @@
-(load-file "../lib/common.el")
+(load-file "../../src/lib/common.el")
 
 (defun string-intersection (l r)
     "returns the single char in common in two strings. O(n) w/ hashmap"

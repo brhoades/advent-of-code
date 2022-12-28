@@ -1,8 +1,10 @@
 use std::fmt;
 use std::io::{self, Write};
+use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
-use anyhow::{anyhow, bail, Error, Result};
+use advent_of_code::map::Map as BaseMap;
+use anyhow::{bail, Error, Result};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Tile {
@@ -35,104 +37,55 @@ impl fmt::Display for Tile {
     }
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct Map<T> {
-    tiles: Vec<Vec<T>>,             // y => x => Tile
-    pub dimensions: (usize, usize), // (x, y)
+#[derive(Debug, Clone)]
+pub struct Map<T>(BaseMap<T>);
+
+impl<T: Default + Clone> Map<T> {
+    pub fn new_dense(width: usize, height: usize) -> Self {
+        Self(BaseMap::new_dense(width, height))
+    }
+}
+
+impl<T> Deref for Map<T> {
+    type Target = BaseMap<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for Map<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 impl FromStr for Map<Tile> {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        let mut m = Self {
-            tiles: s
-                .split("\n")
+        let m = BaseMap::from_data(
+            s.split("\n")
                 .filter(|l| *l != "")
                 .map(|row| {
                     row.split("")
                         .filter(|c| *c != "")
                         .map(FromStr::from_str)
-                        .map(|c| c.map_err(|e| anyhow!("error '{}' on parsing row: {}", e, row)))
+                        // .map(|c| c.map_err(|e| anyhow!("error '{}' on parsing row: {}", e, row)))
                         .collect::<Result<Vec<_>>>()
                 })
                 .collect::<Result<_>>()?,
-            dimensions: (0, 0),
-        };
-        m.dimensions = (m.tiles.get(0).unwrap().len(), m.tiles.len());
+        )?;
 
-        if m.tiles.iter().any(|row| row.len() != m.dimensions.0) {
+        if m.iter_rows().any(|row| row.len() != m.dimensions.0) {
             bail!("all rows must be the same width");
         }
 
-        Ok(m)
+        Ok(Map(m))
     }
 }
 
-impl<T: Default + Clone> Map<T> {
-    pub fn new_dense(width: usize, height: usize) -> Self {
-        Self {
-            tiles: (0..height)
-                .map(|_| {
-                    let mut row = vec![];
-                    row.resize(width, Default::default());
-                    row
-                })
-                .collect::<Vec<_>>(),
-            dimensions: (width, height),
-        }
-    }
-}
-
-impl<T> Map<T> {
-    pub fn get(&self, x: usize, y: usize) -> Result<&T> {
-        self.tiles.get(y).and_then(|row| row.get(x)).ok_or_else(|| {
-            anyhow!(
-                "map w/ dimens {:?} lacks tile at ({}, {})",
-                self.dimensions,
-                x,
-                y
-            )
-        })
-    }
-
-    pub fn get_mut(&mut self, x: usize, y: usize) -> Result<&mut T> {
-        self.tiles
-            .get_mut(y)
-            .and_then(|row| row.get_mut(x))
-            .ok_or_else(|| {
-                anyhow!(
-                    "map w/ dimens {:?} lacks tile at ({}, {})",
-                    self.dimensions,
-                    x,
-                    y
-                )
-            })
-    }
-
-    pub fn iter_rows(&self) -> std::slice::Iter<Vec<T>> {
-        self.tiles.iter()
-    }
-}
-
-impl fmt::Display for Map<bool> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for row in self.iter_rows() {
-            for cell in row {
-                if *cell {
-                    write!(f, "T")?;
-                } else {
-                    write!(f, ".")?;
-                }
-            }
-            write!(f, "\n")?;
-        }
-
-        Ok(())
-    }
-}
-
-impl fmt::Display for Map<Tile> {
+impl<T: fmt::Display> fmt::Display for Map<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for row in self.iter_rows() {
             for cell in row {
