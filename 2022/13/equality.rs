@@ -1,5 +1,28 @@
+use std::cmp::{Ordering, Ordering::*};
+
 use super::value::{Value, Value::*};
 
+impl Ord for Value {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match list_order_correct_inner(self, other) {
+            Some(true) => Less,
+            Some(false) => Greater,
+            _ => Equal,
+        }
+    }
+}
+
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match list_order_correct_inner(self, other) {
+            Some(true) => Some(Less),
+            Some(false) => Some(Greater),
+            _ => Some(Equal),
+        }
+    }
+}
+
+#[cfg(test)]
 pub fn list_order_correct(left: &Value, right: &Value) -> bool {
     list_order_correct_inner(left, right).expect("unexpected case")
 }

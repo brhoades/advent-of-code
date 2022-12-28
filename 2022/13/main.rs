@@ -2,13 +2,31 @@ mod equality;
 mod parse;
 mod value;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use std::fmt;
 
 use value::{Value, Value::*};
 
 pub fn run(input: String) -> Result<()> {
-    println!("sum of indices: {}", indices_sum(&input)?);
+    let mut lines = parse_input(&input)?;
+    println!("sum of sorted indices: {}", indices_sum(&lines)?);
+
+    println!("\n======= part 2 =========\n");
+
+    let two = parse::line("[[2]]")?;
+    let six = parse::line("[[6]]")?;
+    lines.push(two.clone());
+    lines.push(six.clone());
+    lines.sort();
+
+    println!(
+        "decoder key: {}",
+        lines
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| **p == two || **p == six)
+            .fold(1, |acc, (i, _)| { acc * i })
+    );
 
     Ok(())
 }
@@ -68,21 +86,23 @@ fn test_equality_simple_cases() {
     }
 }
 
-fn indices_sum(input: &str) -> Result<usize> {
-    let mut sum = 0;
-    for (i, pair) in input.split("\n\n").filter(|l| *l != "").enumerate() {
-        let mut pair = pair.split("\n").map(parse::line);
-        let l = &pair
-            .next()
-            .ok_or_else(|| anyhow!("first line of input missing @ {}", i))??;
-        let r = &pair
-            .next()
-            .ok_or_else(|| anyhow!("second line of input missing @ {}", i))??;
+fn parse_input(input: &str) -> Result<Vec<Value>> {
+    input
+        .split("\n\n")
+        .filter(|l| *l != "")
+        .flat_map(|l| l.split("\n"))
+        .map(parse::line)
+        .collect::<Result<Vec<_>>>()
+}
 
-        // println!("i: {}\t{}\t{:?} == {:?}", i, list_order_correct(l, r), l, r);
-        println!("Problem {}: {}", i + 1, equality::list_order_correct(l, r),);
-        if equality::list_order_correct(l, r) {
-            sum += i + 1;
+fn indices_sum(lines: &Vec<Value>) -> Result<usize> {
+    let mut sum = 0;
+    for i in (0..(lines.len() - 1)).step_by(2) {
+        let l = &lines[i];
+        let r = &lines[i + 1];
+
+        if l < r {
+            sum += i / 2 + 1;
         }
     }
     Ok(sum)
