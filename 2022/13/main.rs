@@ -110,6 +110,8 @@ fn indices_sum(lines: &Vec<Value>) -> Result<usize> {
 
 #[test]
 fn test_example_1() {
+    use anyhow::anyhow;
+
     let input = r#"[1,1,3,1,1]
 [1,1,5,1,1]
 
@@ -155,7 +157,8 @@ fn test_example_1() {
         }
     }
 
-    assert_eq!(13, indices_sum(input).unwrap());
+    let lines = parse_input(&input).unwrap();
+    assert_eq!(13, indices_sum(&lines).unwrap());
 }
 
 impl fmt::Display for Value {
