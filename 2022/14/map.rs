@@ -7,7 +7,7 @@ use std::iter::repeat;
 
 pub use advent_of_code::{prelude::*, coord::Coordinate as BaseCoordinate, map::Map as BaseMap};
 
-type Coordinate = BaseCoordinate<i32>;
+type Coordinate = BaseCoordinate<usize>;
 
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
 pub enum Tile {
@@ -22,55 +22,38 @@ use Tile::*;
 #[derive(Debug, Clone)]
 pub struct Map {
     data: BaseMap<Tile>,
-    // offsets gets
-    offset: (i32, i32),
-    bounds: ((i32, i32), (i32, i32)), // ((min_x, min_y), (max_x, max_y))
+    bounds: ((usize, usize), (usize, usize)), // ((min_x, min_y), (max_x, max_y))
     dimensions: (usize, usize),       // width and height
 }
 
 impl Map {
-    pub fn get(&self, x: i32, y: i32) -> Result<&Tile> {
+    pub fn get(&self, x: usize, y: usize) -> Result<&Tile> {
         if x > self.bounds.1.0 || x < self.bounds.0.0 {
             bail!("x coordinate in get out of range: ({}, {}) w/ bounds {:?}", x, y, self.bounds);
         } else if y > self.bounds.1.1 || y < self.bounds.0.1 {
             bail!("y coordinate in get out of range: ({}, {}) w/ bounds {:?}", x, y, self.bounds);
         }
 
-        self.data.get(
-            (x as i32 + self.offset.0).try_into()?,
-            (y as i32 + self.offset.1).try_into()?,
-        )
+        self.data.get(x, y)
     }
 
-    pub fn get_mut(&mut self, x: i32, y: i32) -> Result<&mut Tile> {
+    pub fn get_mut(&mut self, x: usize, y: usize) -> Result<&mut Tile> {
         if x > self.bounds.1.0 || x < self.bounds.0.0 {
             bail!("x coordinate in get out of range: ({}, {}) w/ bounds {:?}", x, y, self.bounds);
         } else if y > self.bounds.1.1 || y < self.bounds.0.1 {
             bail!("y coordinate in get out of range: ({}, {}) w/ bounds {:?}", x, y, self.bounds);
         }
 
-        self.data.get_mut(
-            (x as i32 + self.offset.0).try_into()?,
-            (y as i32 + self.offset.1).try_into()?,
-        )
+        self.data.get_mut(x, y)
     }
 
     /// bounds: ((min_x, min_y), (max_x, max_y))
     /// must be larger than existing bounds
-    pub fn resize(&mut self, bounds: ((i32, i32), (i32, i32))) {
-        let (lower, upper) = bounds;
-        let dimensions = ((upper.0 - lower.0 + 1) as usize, (upper.1 - lower.1 + 1) as usize); // add 1 since coordinates include 0
-
-        let mut newdata = BaseMap::new_dense(dimensions.0, dimensions.1);
-
-        for (y, row) in self.iter_rows().enumerate().map(|(y, row)| (y as i32 - self.offset.1, row)) {
-            for (x, col) in row.iter().enumerate().map(|(x, col)| (x as i32 - self.offset.0, col)) {
-                *newdata.get_mut(x.try_into().unwrap(), y.try_into().unwrap()).unwrap() = col.clone();
-            }
+    pub fn resize(&mut self, bounds: ((usize, usize), (usize, usize))) {
+        if self.bounds.1.1 < bounds.1.1  || self.bounds.1.0 < bounds.1.0 {
+            unimplemented!("resizing to a larger map isn't implemented");
         }
 
-        self.dimensions = dimensions;
-        self.data = newdata;
         self.bounds = bounds;
     }
 
@@ -82,7 +65,7 @@ impl Map {
         self.dimensions
     }
 
-    pub fn bounds(&self) -> ((i32, i32), (i32, i32)) {
+    pub fn bounds(&self) -> ((usize, usize), (usize, usize)) {
         self.bounds
     }
 
@@ -108,8 +91,12 @@ impl fmt::Display for Tile {
 
 impl fmt::Display for Map {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for row in self.data.iter_rows() {
-            for col in row {
+        let b = self.bounds;
+        for (y, row) in self.data.iter_rows().enumerate() {
+            if y > b.1.1 as usize || y < b.0.1 as usize {
+                continue
+            }
+            for col in &row[b.0.0..=b.1.0] {
                 write!(f, "{}", col)?;
             }
             write!(f, "\n")?;
@@ -137,11 +124,10 @@ impl FromStr for Map {
             (min(last.0, curr.x), min(last.1, curr.y))
         });
 
-        let dimensions = ((upper.0 - lower.0 + 1) as usize, (upper.1 - lower.1 + 1) as usize); // add 1 since coordinates include 0
+        let dimensions = ((upper.0 + 1) as usize, (upper.1 + 1) as usize); // add 1 since coordinates include 0
 
         let mut m = Self {
             data: BaseMap::new_dense(dimensions.0, dimensions.1),
-            offset: (0 as i32 - lower.0 as i32, 0 as i32 - lower.1 as i32),
             bounds: (lower, upper),
             dimensions,
         };
@@ -152,9 +138,9 @@ impl FromStr for Map {
             for tp in line {
                 if let Some(lp) = last {
                     let rng = if lp.x == tp.x {
-                        repeat(lp.x).zip(min(lp.y, tp.y)..=max(lp.y, tp.y)).collect::<Vec<(i32, i32)>>()
+                        repeat(lp.x).zip(min(lp.y, tp.y)..=max(lp.y, tp.y)).collect::<Vec<(usize, usize)>>()
                     } else if lp.y == tp.y {
-                        (min(lp.x, tp.x)..=max(lp.x, tp.x)).zip(repeat(lp.y)).collect::<Vec<(i32, i32)>>()
+                        (min(lp.x, tp.x)..=max(lp.x, tp.x)).zip(repeat(lp.y)).collect::<Vec<(usize, usize)>>()
                     } else {
                         bail!("only vertical or horizontal line drawing is supported, got: {} -> {}", lp, tp);
                     };
@@ -207,7 +193,7 @@ mod test {
 
         let wall_coords = repeat(2)
             .zip(2..=5).chain((2..=4).zip(repeat(5)))
-            .collect::<HashSet<(i32, i32)>>();
+            .collect::<HashSet<(usize, usize)>>();
 
         for x in 2..=4 {
             for y in 2..=5 {
@@ -229,7 +215,7 @@ mod test {
         let input = r#"498,4 -> 498,6 -> 496,6
 503,4 -> 502,4 -> 502,9 -> 494,9"#;
 
-        let expected = "# ......+...;
+        let expected = r#"......+...
 ..........
 ..........
 ..........
@@ -238,7 +224,8 @@ mod test {
 ..###...#.
 ........#.
 ........#.
-#########.#";
+#########.
+"#;
 
         let mut m: Map = input.parse().expect("should parse");
         let bounds = m.bounds();
