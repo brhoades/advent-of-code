@@ -33,3 +33,7 @@ pub(crate) mod twelve {
 pub(crate) mod thirteen {
     include!("Y2022/13/main.rs");
 }
+
+pub(crate) mod fourteen {
+    include!("Y2022/14/main.rs");
+}
