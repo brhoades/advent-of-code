@@ -22,39 +22,19 @@ use Tile::*;
 #[derive(Debug, Clone)]
 pub struct Map {
     data: BaseMap<Tile>,
-    bounds: ((usize, usize), (usize, usize)), // ((min_x, min_y), (max_x, max_y))
-    dimensions: (usize, usize),       // width and height
 }
 
 impl Map {
     pub fn get(&self, x: usize, y: usize) -> Result<&Tile> {
-        if x > self.bounds.1.0 || x < self.bounds.0.0 {
-            bail!("x coordinate in get out of range: ({}, {}) w/ bounds {:?}", x, y, self.bounds);
-        } else if y > self.bounds.1.1 || y < self.bounds.0.1 {
-            bail!("y coordinate in get out of range: ({}, {}) w/ bounds {:?}", x, y, self.bounds);
-        }
-
         self.data.get(x, y)
     }
 
     pub fn get_mut(&mut self, x: usize, y: usize) -> Result<&mut Tile> {
-        if x > self.bounds.1.0 || x < self.bounds.0.0 {
-            bail!("x coordinate in get out of range: ({}, {}) w/ bounds {:?}", x, y, self.bounds);
-        } else if y > self.bounds.1.1 || y < self.bounds.0.1 {
-            bail!("y coordinate in get out of range: ({}, {}) w/ bounds {:?}", x, y, self.bounds);
-        }
-
         self.data.get_mut(x, y)
     }
 
-    /// bounds: ((min_x, min_y), (max_x, max_y))
-    /// must be larger than existing bounds
-    pub fn resize(&mut self, bounds: ((usize, usize), (usize, usize))) {
-        if self.bounds.1.1 < bounds.1.1  || self.bounds.1.0 < bounds.1.0 {
-            unimplemented!("resizing to a larger map isn't implemented");
-        }
-
-        self.bounds = bounds;
+    pub fn resize(&mut self, width: usize, height: usize) {
+        self.data.resize(width, height)
     }
 
     pub fn iter_rows(&self) -> std::slice::Iter<Vec<Tile>> {
@@ -65,9 +45,35 @@ impl Map {
         self.dimensions
     }
 
-    pub fn bounds(&self) -> ((usize, usize), (usize, usize)) {
-        self.bounds
+    /// bounds returns the topmost and bottommost nonempty coordinates
+    /// None is returned if the dataset is empty.
+    pub fn bounds(&self) -> Option<(Coordinate, Coordinate)> {
+        let mut minc = None;
+        let mut maxc = None;
+        for (y, row) in self.iter_rows().enumerate() {
+            for (x, t) in row.iter().enumerate() {
+                match t {
+                    Empty => continue,
+                    _ => (),
+                }
+
+                match minc {
+                    None => minc = Some(Coordinate{x, y}),
+                    Some(c) if c.x <= x || c.y <= y => minc = Some(Coordinate{x: min(c.x, x), y: min(c.y, y)}),
+                    _ => (),
+                }
+
+                match maxc {
+                    None => maxc = Some(Coordinate{x, y}),
+                    Some(c) if c.x >= x || c.y >= y => maxc = Some(Coordinate{x: max(c.x, x), y: max(c.y, y)}),
+                    _ => (),
+                }
+            }
+        }
+
+        minc.and_then(|min| maxc.and_then(|max| Some((min, max))))
     }
+
 
     pub fn height(&self) -> usize {
         self.dimensions.1
@@ -91,12 +97,18 @@ impl fmt::Display for Tile {
 
 impl fmt::Display for Map {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let b = self.bounds;
+        // we only print the minimal span of tiles which are not empty
+        let b = self.bounds();
+        if b.is_none() {
+            return Ok(());
+        }
+        let (lower, upper) = b.unwrap();
+
         for (y, row) in self.data.iter_rows().enumerate() {
-            if y > b.1.1 as usize || y < b.0.1 as usize {
+            if y > upper.y as usize || y < lower.y as usize {
                 continue
             }
-            for col in &row[b.0.0..=b.1.0] {
+            for col in &row[lower.x..=upper.x] {
                 write!(f, "{}", col)?;
             }
             write!(f, "\n")?;
@@ -113,23 +125,17 @@ impl FromStr for Map {
     // and derives a Map
     fn from_str(s: &str) -> Result<Self> {
         let lines: Vec<Vec<Coordinate>> = s.lines().map(parse_line).collect::<Result<_>>()?;
-        let mut bounds = (0, 0);
         let first = lines.first()
             .and_then(|l| l.first())
             .ok_or_else(|| anyhow!("expect at least one line"))?;
         let upper = lines.iter().flatten().fold((first.x, first.y), |last, curr| {
             (max(last.0, curr.x), max(last.1, curr.y))
         });
-        let lower = lines.iter().flatten().fold((first.x, first.y), |last, curr| {
-            (min(last.0, curr.x), min(last.1, curr.y))
-        });
 
         let dimensions = ((upper.0 + 1) as usize, (upper.1 + 1) as usize); // add 1 since coordinates include 0
 
         let mut m = Self {
             data: BaseMap::new_dense(dimensions.0, dimensions.1),
-            bounds: (lower, upper),
-            dimensions,
         };
 
         // finally draw the wall lines on the map
@@ -146,7 +152,6 @@ impl FromStr for Map {
                     };
 
                     for (x, y) in rng {
-                        println!("set ({}, {}) to rock", x, y);
                         *m.get_mut(x, y)? = Rock;
                     }
 
@@ -228,8 +233,6 @@ mod test {
 "#;
 
         let mut m: Map = input.parse().expect("should parse");
-        let bounds = m.bounds();
-        m.resize(((bounds.0.0, 0), (bounds.1.0, bounds.1.1)));
         // sand falls from (500, 0)
         *m.get_mut(500, 0).unwrap() = Source;
 
