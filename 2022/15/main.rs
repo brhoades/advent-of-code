@@ -1,0 +1,217 @@
+use std::str::FromStr;
+use std::fmt;
+use std::cmp::{min, max};
+use std::collections::HashSet;
+
+use advent_of_code::prelude::*;
+
+pub fn run(input: String) -> Result<()> {
+    let sensors: Map = input.parse()?;
+
+    println!("answer: {}", sensors.positions_without_beacon(2_000_000));
+    Ok(())
+}
+
+struct Sensor {
+    x: i64,
+    y: i64,
+    range: i64,
+
+    beacon: (i64, i64),
+}
+
+impl Sensor {
+    /// returns if this sesnor cover the provided coordinate
+    pub fn cover(&self, x: i64, y: i64) -> bool {
+        (x - self.x).abs() + (y - self.y).abs() <= self.range
+    }
+}
+
+impl FromStr for Sensor {
+    type Err = Error;
+
+    /// takes line-by-line representation of wall lines
+    /// and derives a Map
+    fn from_str(s: &str) -> Result<Self> {
+        let parts = s.split(" ").collect::<Vec<_>>();
+        let cleanup = |s: &str| s.trim_matches(|c| ",:x=y".find(c).is_some()).to_string();
+
+        let (sx, sy, bx, by): (i64, i64, i64, i64) = if let &[_, _, sx, sy, _, _, _, _, bx, by] = parts.as_slice() {
+            (cleanup(sx).parse()?, cleanup(sy).parse()?, cleanup(bx).parse()?, cleanup(by).parse()?)
+        } else {
+            bail!("unknown format for line: {}", s)
+        };
+
+        let range = (bx - sx).abs() + (by - sy).abs();
+
+        Ok(Sensor{
+            x: sx,
+            y: sy,
+            range,
+            beacon: (bx, by),
+        })
+    }
+}
+
+struct Map {
+    dimensions: (i64, i64),
+    left: (i64, i64), // left side of drawn graphs, from S or B
+    sensors: Vec<Sensor>,
+}
+
+impl Map {
+    /// returns the number of positions on a given line (y=#) for which a beacon
+    /// cannot be present.
+    pub fn positions_without_beacon(&self, y: i64) -> usize {
+        let mut cnt = 0;
+        let nodes: HashSet<(i64, i64)> = self.sensors.iter()
+            .flat_map(|s| vec![(s.x, s.y), s.beacon.clone()])
+            .collect();
+
+
+        for x in self.left.0..self.dimensions.0 {
+            if let Some(_) = nodes.get(&(x, y)) {
+                continue;
+            }
+
+            if self.sensors.iter().any(|s| s.cover(x, y)) {
+                cnt += 1;
+            }
+        }
+
+        cnt
+    }
+}
+
+impl fmt::Display for Map {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // pad base on number of digits and add two for negatives with some minor padding from data
+        let ypad = max((self.left.1 as f64).log10() as usize, (self.dimensions.1 as f64).log10() as usize) + 2;
+        let xpad = max((self.left.0 as f64).log10() as usize, (self.dimensions.0 as f64).log10() as usize) + 2;
+
+        // render X position labels
+        for y in self.left.1..self.dimensions.1 {
+            if y == self.left.1 {
+                for i in 0..=xpad {
+                    for _ in 0..=ypad {
+                        write!(f, " ")?;
+                    }
+
+                    if i >= xpad {
+                        write!(f, " ")?;
+                    } else {
+                        for x in self.left.0..self.dimensions.0 {
+                            if x % 5 == 0 || x == self.dimensions.0 - 1 || x == self.left.0 {
+                                write!(f, "{}", format!("{: >width$} ", x, width=xpad).get(i..=i).unwrap())?;
+                            } else {
+                                write!(f, " ")?;
+                            }
+                        }
+                    }
+
+                    write!(f, "\n")?;
+                }
+            }
+
+            // render Y position labels
+            write!(f, "{: >width$} ", y, width=ypad)?;
+            for x in self.left.0..self.dimensions.0 {
+                let mut drawn = false;
+                for s in &self.sensors {
+                    if s.beacon.0 == x && s.beacon.1 == y {
+                        write!(f, "B")?;
+                        drawn = true;
+                        break;
+                    }
+                    if s.x == x && s.y == y {
+                        write!(f, "S")?;
+                        drawn = true;
+                        break
+                    }
+
+                    if s.cover(x, y) {
+                        write!(f, "#")?;
+                        drawn = true;
+                        break;
+                    }
+                }
+
+                if !drawn {
+                    write!(f, ".")?;
+                }
+            }
+            write!(f, "\n")?;
+        }
+
+        Ok(())
+    }
+
+}
+
+impl FromStr for Map {
+    type Err = Error;
+
+    // takes line-by-line representation of wall lines
+    // and derives a Map
+    fn from_str(s: &str) -> Result<Self> {
+        let sensors = s.lines().map(FromStr::from_str).collect::<Result<Vec<Sensor>>>()?;
+        let dimensions = (
+            sensors.iter().map(|s| max(s.x + s.range + 1, s.beacon.0)).max().unwrap(),
+            sensors.iter().map(|s| max(s.y + s.range + 1, s.beacon.1)).max().unwrap(),
+        );
+        let left = (
+            sensors.iter().map(|s| min(s.x - s.range, s.beacon.0)).min().unwrap(),
+            sensors.iter().map(|s| min(s.y - s.range, s.beacon.1)).min().unwrap(),
+        );
+
+        Ok(Map{
+            sensors,
+            dimensions,
+            left,
+        })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_simple_pt1() {
+        let inputs = "Sensor at x=5, y=5: closest beacon is at x=3, y=3";
+        let m: Map = inputs.parse().unwrap();
+        println!("{}", m);
+
+        for x in 0..=10 {
+            for y in 0..=10 {
+                assert_eq!(
+                    (x - 5 as i64).abs() + (y - 5 as i64).abs() <= 4,
+                    m.sensors.first().unwrap().cover(x, y),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_ex_pt1() {
+        let input = r#"Sensor at x=2, y=18: closest beacon is at x=-2, y=15
+Sensor at x=9, y=16: closest beacon is at x=10, y=16
+Sensor at x=13, y=2: closest beacon is at x=15, y=3
+Sensor at x=12, y=14: closest beacon is at x=10, y=16
+Sensor at x=10, y=20: closest beacon is at x=10, y=16
+Sensor at x=14, y=17: closest beacon is at x=10, y=16
+Sensor at x=8, y=7: closest beacon is at x=2, y=10
+Sensor at x=2, y=0: closest beacon is at x=2, y=10
+Sensor at x=0, y=11: closest beacon is at x=2, y=10
+Sensor at x=20, y=14: closest beacon is at x=25, y=17
+Sensor at x=17, y=20: closest beacon is at x=21, y=22
+Sensor at x=16, y=7: closest beacon is at x=15, y=3
+Sensor at x=14, y=3: closest beacon is at x=15, y=3
+Sensor at x=20, y=1: closest beacon is at x=15, y=3"#;
+        let sensors: Map = input.parse().unwrap();
+
+
+        println!("{}", sensors);
+        assert_eq!(26, sensors.positions_without_beacon(10));
+    }
+}
