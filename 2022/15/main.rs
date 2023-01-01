@@ -1,5 +1,5 @@
 use std::cmp::{max, min};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::str::FromStr;
 
@@ -44,7 +44,7 @@ impl Sensor {
 
     /// returns if this sensor cover the provided coordinate
     #[inline]
-    pub fn cover(&self, x: i64, y: i64) -> bool {
+    pub fn contains(&self, x: i64, y: i64) -> bool {
         self.distance(x, y) <= self.range
     }
 
@@ -118,7 +118,7 @@ impl Map {
                 continue;
             }
 
-            if self.sensors.iter().any(|s| s.cover(x, y)) {
+            if self.sensors.iter().any(|s| s.contains(x, y)) {
                 cnt += 1;
             }
         }
@@ -126,9 +126,31 @@ impl Map {
         cnt
     }
 
-    /// find_distress_signal looks at all the points on the edge of sensors perimeter in the range
-    /// and finds their intersection since there's just one.
+    /// find_distress_signal looks at all the points on the edge of sensors perimeter in the range.
+    /// Checking all sensors against these points will yield a result more quickly than checking
+    /// all points.
     pub fn find_distress_signal(&self, lx: i64, ly: i64, mx: i64, my: i64) -> Option<(i64, i64)> {
+        let pts = self.sensors.iter().flat_map(|s| {
+            s.perimeter_iter(1)
+                .filter(|(x, y)| x > &lx && y > &ly && x < &mx && y < &my)
+        });
+
+        let mut seen = HashSet::with_capacity(
+            self.sensors
+                .iter()
+                .fold(0 as usize, |acc, s| acc + 4 * (s.range + 1) as usize),
+        );
+        for (x, y) in pts {
+            if seen.contains(&(x, y)) {
+                continue;
+            }
+
+            seen.insert((x, y).clone());
+
+            if !self.sensors.iter().any(|s| s.contains(x, y)) {
+                return Some((x, y));
+            }
+        }
         None
     }
 }
@@ -189,7 +211,7 @@ impl fmt::Display for Map {
                         break;
                     }
 
-                    if s.cover(x, y) {
+                    if s.contains(x, y) {
                         write!(f, "#")?;
                         drawn = true;
                         break;
@@ -285,8 +307,6 @@ impl Iterator for PerimeterIterator {
     // use of next. Iteration for a step finishes when the next
     // vertex is hit.
     fn next(&mut self) -> Option<Self::Item> {
-        let edgex = self.offset + self.source.0;
-        let edgey = self.offset + self.source.1;
         let (srcx, srcy) = self.start_by_offset();
 
         let x = self.cur_step.0 * self.cur_i + srcx;
@@ -322,7 +342,7 @@ mod test {
             for y in 0..=10 {
                 assert_eq!(
                     (x - 5 as i64).abs() + (y - 5 as i64).abs() <= 4,
-                    m.sensors.first().unwrap().cover(x, y),
+                    m.sensors.first().unwrap().contains(x, y),
                 );
             }
         }
