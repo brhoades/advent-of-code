@@ -1,19 +1,28 @@
-use std::str::FromStr;
-use std::fmt;
-use std::cmp::{min, max};
+use std::cmp::{max, min};
 use std::collections::HashSet;
+use std::fmt;
+use std::str::FromStr;
 
 use advent_of_code::prelude::*;
 
 pub fn run(input: String) -> Result<()> {
     let m: Map = input.parse()?;
 
-    println!("part 1, row y=2M has {} squares covered by sensors", m.positions_without_beacon(2_000_000));
+    println!(
+        "part 1, row y=2M has {} squares covered by sensors",
+        m.positions_without_beacon(2_000_000)
+    );
 
     println!("===== part 2 =====");
-    let (x, y) = m.find_distress_signal(0, 0, 4_000_000, 4_000_000).expect("failed to find signal");
-    println!("distress beacon @ ({}, {}) with frequency {}", x, y, x * 4000000 + y);
-
+    let (x, y) = m
+        .find_distress_signal(0, 0, 4_000_000, 4_000_000)
+        .expect("failed to find signal");
+    println!(
+        "distress beacon @ ({}, {}) with frequency {}",
+        x,
+        y,
+        x * 4000000 + y
+    );
 
     Ok(())
 }
@@ -28,10 +37,30 @@ struct Sensor {
 }
 
 impl Sensor {
-    /// returns if this sesnor cover the provided coordinate
+    #[inline]
+    pub fn distance(&self, x: i64, y: i64) -> i64 {
+        (x - self.x).abs() + (y - self.y).abs()
+    }
+
+    /// returns if this sensor cover the provided coordinate
     #[inline]
     pub fn cover(&self, x: i64, y: i64) -> bool {
-        (x - self.x).abs() + (y - self.y).abs() <= self.range
+        self.distance(x, y) <= self.range
+    }
+
+    /// perimeter_iter returns an interator which walks the perimeter
+    /// of the sensor's range at an offset. offset=0 walks the perimeter,
+    /// offset=1 is one additional step outside of that, etc
+    pub fn perimeter_iter(&self, offset: i64) -> PerimeterIterator {
+        PerimeterIterator {
+            rem_steps: vec![(1, -1), (1, 1), (-1, 1)],
+
+            cur_step: (-1, -1),
+            cur_i: 0,
+
+            offset: self.range + offset,
+            source: (self.x, self.y),
+        }
     }
 }
 
@@ -44,15 +73,21 @@ impl FromStr for Sensor {
         let parts = s.split(" ").collect::<Vec<_>>();
         let cleanup = |s: &str| s.trim_matches(|c| ",:x=y".find(c).is_some()).to_string();
 
-        let (sx, sy, bx, by): (i64, i64, i64, i64) = if let &[_, _, sx, sy, _, _, _, _, bx, by] = parts.as_slice() {
-            (cleanup(sx).parse()?, cleanup(sy).parse()?, cleanup(bx).parse()?, cleanup(by).parse()?)
-        } else {
-            bail!("unknown format for line: {}", s)
-        };
+        let (sx, sy, bx, by): (i64, i64, i64, i64) =
+            if let &[_, _, sx, sy, _, _, _, _, bx, by] = parts.as_slice() {
+                (
+                    cleanup(sx).parse()?,
+                    cleanup(sy).parse()?,
+                    cleanup(bx).parse()?,
+                    cleanup(by).parse()?,
+                )
+            } else {
+                bail!("unknown format for line: {}", s)
+            };
 
         let range = (bx - sx).abs() + (by - sy).abs();
 
-        Ok(Sensor{
+        Ok(Sensor {
             x: sx,
             y: sy,
             range,
@@ -72,10 +107,11 @@ impl Map {
     /// cannot be present.
     pub fn positions_without_beacon(&self, y: i64) -> usize {
         let mut cnt = 0;
-        let nodes: HashSet<(i64, i64)> = self.sensors.iter()
+        let nodes: HashSet<(i64, i64)> = self
+            .sensors
+            .iter()
             .flat_map(|s| vec![(s.x, s.y), s.beacon.clone()])
             .collect();
-
 
         for x in self.left.0..self.dimensions.0 {
             if let Some(_) = nodes.get(&(x, y)) {
@@ -93,21 +129,6 @@ impl Map {
     /// find_distress_signal looks at all the points on the edge of sensors perimeter in the range
     /// and finds their intersection since there's just one.
     pub fn find_distress_signal(&self, lx: i64, ly: i64, mx: i64, my: i64) -> Option<(i64, i64)> {
-        let mut points = HashSet::new();
-
-        for s in sensor {
-            for step in vec![(1, 1), (1, -1), (-1, 1), (-1, -1)] {
-                let mut i = 0;
-                loop {
-                    let x = i * step.0 + s.range + 1;
-                    let y = i * step.1 + s.range + 1;
-                for i in 0..s.range {
-                    points.insert((s.x + i * step.0 + step.0, step.y + i * step.1 + step.1));
-                }
-            }
-        }
-
-        println!("");
         None
     }
 }
@@ -115,8 +136,14 @@ impl Map {
 impl fmt::Display for Map {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // pad base on number of digits and add two for negatives with some minor padding from data
-        let ypad = max((self.left.1 as f64).log10() as usize, (self.dimensions.1 as f64).log10() as usize) + 2;
-        let xpad = max((self.left.0 as f64).log10() as usize, (self.dimensions.0 as f64).log10() as usize) + 2;
+        let ypad = max(
+            (self.left.1 as f64).log10() as usize,
+            (self.dimensions.1 as f64).log10() as usize,
+        ) + 2;
+        let xpad = max(
+            (self.left.0 as f64).log10() as usize,
+            (self.dimensions.0 as f64).log10() as usize,
+        ) + 2;
 
         // render X position labels
         for y in self.left.1..self.dimensions.1 {
@@ -131,7 +158,11 @@ impl fmt::Display for Map {
                     } else {
                         for x in self.left.0..self.dimensions.0 {
                             if x % 5 == 0 || x == self.dimensions.0 - 1 || x == self.left.0 {
-                                write!(f, "{}", format!("{: >width$} ", x, width=xpad).get(i..=i).unwrap())?;
+                                write!(
+                                    f,
+                                    "{}",
+                                    format!("{: >width$} ", x, width = xpad).get(i..=i).unwrap()
+                                )?;
                             } else {
                                 write!(f, " ")?;
                             }
@@ -143,7 +174,7 @@ impl fmt::Display for Map {
             }
 
             // render Y position labels
-            write!(f, "{: >width$} ", y, width=ypad)?;
+            write!(f, "{: >width$} ", y, width = ypad)?;
             for x in self.left.0..self.dimensions.0 {
                 let mut drawn = false;
                 for s in &self.sensors {
@@ -155,7 +186,7 @@ impl fmt::Display for Map {
                     if s.x == x && s.y == y {
                         write!(f, "S")?;
                         drawn = true;
-                        break
+                        break;
                     }
 
                     if s.cover(x, y) {
@@ -174,7 +205,6 @@ impl fmt::Display for Map {
 
         Ok(())
     }
-
 }
 
 impl FromStr for Map {
@@ -183,21 +213,98 @@ impl FromStr for Map {
     // takes line-by-line representation of wall lines
     // and derives a Map
     fn from_str(s: &str) -> Result<Self> {
-        let sensors = s.lines().map(FromStr::from_str).collect::<Result<Vec<Sensor>>>()?;
+        let sensors = s
+            .lines()
+            .map(FromStr::from_str)
+            .collect::<Result<Vec<Sensor>>>()?;
         let dimensions = (
-            sensors.iter().map(|s| max(s.x + s.range + 1, s.beacon.0)).max().unwrap(),
-            sensors.iter().map(|s| max(s.y + s.range + 1, s.beacon.1)).max().unwrap(),
+            sensors
+                .iter()
+                .map(|s| max(s.x + s.range + 1, s.beacon.0))
+                .max()
+                .unwrap(),
+            sensors
+                .iter()
+                .map(|s| max(s.y + s.range + 1, s.beacon.1))
+                .max()
+                .unwrap(),
         );
         let left = (
-            sensors.iter().map(|s| min(s.x - s.range, s.beacon.0)).min().unwrap(),
-            sensors.iter().map(|s| min(s.y - s.range, s.beacon.1)).min().unwrap(),
+            sensors
+                .iter()
+                .map(|s| min(s.x - s.range, s.beacon.0))
+                .min()
+                .unwrap(),
+            sensors
+                .iter()
+                .map(|s| min(s.y - s.range, s.beacon.1))
+                .min()
+                .unwrap(),
         );
 
-        Ok(Map{
+        Ok(Map {
             sensors,
             dimensions,
             left,
         })
+    }
+}
+
+#[derive(Debug)]
+struct PerimeterIterator {
+    // the steps remaining to walk
+    rem_steps: Vec<(i64, i64)>,
+
+    cur_step: (i64, i64),
+    cur_i: i64,
+
+    offset: i64, // how far out we are iterating from the source
+    source: (i64, i64),
+}
+
+impl PerimeterIterator {
+    // returns the start point to step from given the current step direction
+    fn start_by_offset(&self) -> (i64, i64) {
+        match self.cur_step {
+            (-1, -1) => (self.offset + self.source.0, self.source.1),
+            (-1, 1) => (self.source.0, self.source.1 - self.offset),
+            (1, 1) => (self.source.0 - self.offset, self.source.1),
+            (1, -1) => (self.source.0, self.source.1 + self.offset),
+            other => unimplemented!("should not have step size of {:?}", other),
+        }
+    }
+}
+
+impl Iterator for PerimeterIterator {
+    type Item = (i64, i64);
+
+    // next iterates over cur_step, incrementing cur_i
+    // moves on to the next step when cur_i * cur_step
+    //
+    // next returns the offset + source vertices first on initial
+    // use of next. Iteration for a step finishes when the next
+    // vertex is hit.
+    fn next(&mut self) -> Option<Self::Item> {
+        let edgex = self.offset + self.source.0;
+        let edgey = self.offset + self.source.1;
+        let (srcx, srcy) = self.start_by_offset();
+
+        let x = self.cur_step.0 * self.cur_i + srcx;
+        let y = self.cur_step.1 * self.cur_i + srcy;
+        if self.cur_i != 0 && (x == self.source.0 || y == self.source.1) {
+            // we're on a beacon vertex: use next step
+            if self.rem_steps.len() == 0 {
+                return None;
+            }
+
+            self.cur_step = self.rem_steps.pop().unwrap();
+            self.cur_i = 0;
+            return self.next();
+        } else {
+            self.cur_i += 1;
+        }
+
+        Some((x, y))
     }
 }
 
@@ -239,8 +346,117 @@ Sensor at x=14, y=3: closest beacon is at x=15, y=3
 Sensor at x=20, y=1: closest beacon is at x=15, y=3"#;
         let sensors: Map = input.parse().unwrap();
 
-
         println!("{}", sensors);
         assert_eq!(26, sensors.positions_without_beacon(10));
     }
+
+    #[test]
+    fn test_perimeter_iter_diamond_zero_offset() {
+        for size in 2..=10 {
+            let s = Sensor {
+                x: size,
+                y: size,
+
+                range: size,
+
+                beacon: (0, size),
+            };
+            let mut visited = HashSet::new();
+            let mut i = 0;
+
+            for (x, y) in s.perimeter_iter(0) {
+                println!("({}, {})", x, y);
+                assert!(!visited.contains(&(x, y)));
+                visited.insert((x, y));
+                assert_eq!(s.range, s.distance(x, y));
+
+                i += 1;
+                if i > 2 * s.range * 4 {
+                    panic!();
+                }
+            }
+
+            assert_eq!(s.range * 4, visited.len() as i64);
+        }
+    }
+
+    #[test]
+    fn test_perimeter_iter_square_zero_offset() {
+        for size in 2..=10 {
+            let s = Sensor {
+                x: size,
+                y: size,
+
+                range: size * 2,
+
+                beacon: (0, 0),
+            };
+            let mut visited = HashSet::new();
+            let mut i = 0;
+
+            for (x, y) in s.perimeter_iter(0) {
+                println!("({}, {})", x, y);
+                assert!(!visited.contains(&(x, y)));
+                visited.insert((x, y));
+                assert_eq!(s.range, s.distance(x, y));
+
+                i += 1;
+                if i > s.range * 4 {
+                    panic!();
+                }
+            }
+
+            assert_eq!(s.range * 4, visited.len() as i64);
+        }
+    }
+
+    #[test]
+    fn test_perimeter_iter_diamond_increasing_offset() {
+        let size = 5;
+
+        for offset in 0..=10 {
+            let s = Sensor {
+                x: size,
+                y: size,
+
+                range: size,
+
+                beacon: (0, size),
+            };
+            let side_len = s.range + offset;
+            let mut visited = HashSet::new();
+            let mut i = 0;
+
+            for (x, y) in s.perimeter_iter(offset) {
+                println!("({}, {})", x, y);
+                assert!(!visited.contains(&(x, y)));
+                visited.insert((x, y));
+                assert_eq!(side_len, s.distance(x, y));
+
+                i += 1;
+                if i > side_len * 4 {
+                    panic!();
+                }
+            }
+
+            assert_eq!(side_len * 4, visited.len() as i64);
+            println!("===");
+        }
+    }
 }
+
+/*
+0   .....#.....
+1   ....###....
+2   ...#####...
+3   ..#######..
+4   .#########.
+5   B####S#####
+6   .#########.
+7   ..#######..
+8   ...#####...
+9   ....###....
+10  .....#.....
+
+
+*/
