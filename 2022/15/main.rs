@@ -6,12 +6,19 @@ use std::collections::HashSet;
 use advent_of_code::prelude::*;
 
 pub fn run(input: String) -> Result<()> {
-    let sensors: Map = input.parse()?;
+    let m: Map = input.parse()?;
 
-    println!("answer: {}", sensors.positions_without_beacon(2_000_000));
+    println!("part 1, row y=2M has {} squares covered by sensors", m.positions_without_beacon(2_000_000));
+
+    println!("===== part 2 =====");
+    let (x, y) = m.find_distress_signal(0, 0, 4_000_000, 4_000_000).expect("failed to find signal");
+    println!("distress beacon @ ({}, {}) with frequency {}", x, y, x * 4000000 + y);
+
+
     Ok(())
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct Sensor {
     x: i64,
     y: i64,
@@ -22,6 +29,7 @@ struct Sensor {
 
 impl Sensor {
     /// returns if this sesnor cover the provided coordinate
+    #[inline]
     pub fn cover(&self, x: i64, y: i64) -> bool {
         (x - self.x).abs() + (y - self.y).abs() <= self.range
     }
@@ -80,6 +88,27 @@ impl Map {
         }
 
         cnt
+    }
+
+    /// find_distress_signal looks at all the points on the edge of sensors perimeter in the range
+    /// and finds their intersection since there's just one.
+    pub fn find_distress_signal(&self, lx: i64, ly: i64, mx: i64, my: i64) -> Option<(i64, i64)> {
+        let mut points = HashSet::new();
+
+        for s in sensor {
+            for step in vec![(1, 1), (1, -1), (-1, 1), (-1, -1)] {
+                let mut i = 0;
+                loop {
+                    let x = i * step.0 + s.range + 1;
+                    let y = i * step.1 + s.range + 1;
+                for i in 0..s.range {
+                    points.insert((s.x + i * step.0 + step.0, step.y + i * step.1 + step.1));
+                }
+            }
+        }
+
+        println!("");
+        None
     }
 }
 
