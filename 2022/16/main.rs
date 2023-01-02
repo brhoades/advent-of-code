@@ -12,17 +12,9 @@ use advent_of_code::prelude::*;
 pub fn run(input: String) -> Result<()> {
     let g: Graph = input.parse()?;
 
-    let nodes: Vec<String> = g.valves.iter().map(|v| v.borrow().name.clone()).collect();
+    let mut solver = Simulation::new(&g, 1);
 
-    let mut solver = Simulation::new(&g);
-    let st = g.start().unwrap();
-    let mut visited = VisitedMap::new_dense(nodes.as_slice(), solver.max_turns);
-    solver.solve_dijkstra(&mut visited, st);
-
-    println!(
-        "max flow found: {}",
-        visited.0.values().flat_map(|v| v.values()).max().unwrap()
-    );
+    println!("max flow found: {}", solver.solve_dijkstra(),);
 
     Ok(())
 }
@@ -35,6 +27,9 @@ pub struct Simulation<'a> {
     pub cum_rate: u32,
     pub turn: u32,
     pub max_turns: u32,
+    /// player can spawn up to max_players for time cost = 4
+    pub players: u32,
+    pub max_players: u32,
     /// valves which are open. not stored in Graph to reduce memory use, maybe probably
     pub open_valves: Vec<String>,
     pub open_valves_lookup: HashSet<String>,
@@ -43,7 +38,7 @@ pub struct Simulation<'a> {
 
 /// dumb brute force solver with obvious enhancements
 impl<'a> Simulation<'a> {
-    pub fn new(graph: &'a Graph) -> Self {
+    pub fn new(graph: &'a Graph, max_players: u32) -> Self {
         Self {
             graph,
             open_valves: vec![],
@@ -52,62 +47,37 @@ impl<'a> Simulation<'a> {
             cum_rate: 0,
             turn: 0,
             max_turns: 30,
+            players: 1,
+            max_players,
         }
     }
 
-    // returns maximum flow found
-    #[allow(dead_code)]
-    pub fn solve_brute(&mut self, valve: Weak<RefCell<Valve>>) -> Self {
-        let valve = valve.upgrade().unwrap();
-        let valve = valve.borrow();
-        // tick: we moved
-        if self.tick() {
-            return self.clone();
-        }
+    pub fn solve_dijkstra(&mut self) -> u32 {
+        let st = self.graph.start().unwrap();
+        let nodes: Vec<String> = self
+            .graph
+            .valves
+            .iter()
+            .map(|v| v.borrow().name.clone())
+            .collect();
+        let mut visited = VisitedMap::new_dense(nodes.as_slice(), self.max_turns);
 
-        let mut best: Option<Self> = None;
-        for wv in &valve.neighbors {
-            let rcv: Rc<RefCell<Valve>> = wv.upgrade().unwrap();
-            let v: Ref<Valve> = rcv.borrow();
-
-            let mut c = self.clone();
-            let new = c.solve_brute(wv.clone());
-
-            if best
-                .as_ref()
-                .map(|b| b.cum_flow < new.cum_flow)
-                .unwrap_or(true)
-            {
-                best = Some(new);
-            }
-
-            if v.rate != 0 && !c.open_valves_lookup.contains(&v.name) {
-                // will turn it on, eval, now that we tried not turning it on ^
-                let mut c = c.clone();
-                let new = if c.tick() {
-                    c
-                } else {
-                    c.cum_rate += v.rate;
-                    c.open_valves.push(v.name.clone());
-                    c.open_valves_lookup.insert(v.name.clone());
-                    c.solve_brute(wv.clone())
-                };
-
-                if best
-                    .as_ref()
-                    .map(|b| b.cum_flow < new.cum_flow)
-                    .unwrap_or(true)
-                {
-                    best = Some(new);
-                }
-            }
-        }
-
-        best.unwrap_or_else(|| self.clone())
+        self.solve_dijkstra_from_node(&mut visited, st);
+        visited
+            .0
+            .values()
+            .flat_map(|v| v.values())
+            .max()
+            .cloned()
+            .unwrap_or_default()
     }
 
     // returns maximum flow found
-    pub fn solve_dijkstra(&mut self, visited: &mut VisitedMap, valve: Weak<RefCell<Valve>>) {
+    pub fn solve_dijkstra_from_node(
+        &mut self,
+        visited: &mut VisitedMap,
+        valve: Weak<RefCell<Valve>>,
+    ) {
         let valve = valve.upgrade().unwrap();
         let valve = valve.borrow();
         // tick: we moved
@@ -119,8 +89,7 @@ impl<'a> Simulation<'a> {
         // "first check: {}\t\t{} > {:?}",
         // valve.name, self.cum_flow, vamount
         // );
-        if let Some(_) = vamount {
-        } else {
+        if vamount.is_none() {
             return;
         }
 
@@ -136,7 +105,7 @@ impl<'a> Simulation<'a> {
 
             if vamount.is_some() {
                 let mut c = self.clone();
-                c.solve_dijkstra(visited, wv.clone());
+                c.solve_dijkstra_from_node(visited, wv.clone());
             }
 
             if v.rate != 0 && !self.open_valves_lookup.contains(&v.name) {
@@ -150,7 +119,7 @@ impl<'a> Simulation<'a> {
                     c.cum_rate += v.rate;
                     c.open_valves.push(v.name.clone());
                     c.open_valves_lookup.insert(v.name.clone());
-                    c.solve_dijkstra(visited, wv.clone());
+                    c.solve_dijkstra_from_node(visited, wv.clone());
                 }
             }
         }
@@ -239,22 +208,10 @@ Valve II has flow rate=0; tunnels lead to valves AA, JJ
 Valve JJ has flow rate=21; tunnel leads to valve II"#;
 
         let graph: Graph = input.parse().unwrap();
-        let nodes: Vec<String> = graph
-            .valves
-            .iter()
-            .map(|v| v.borrow().name.clone())
-            .collect();
-
-        let mut solver = Simulation::new(&graph);
-        let st = graph.start().unwrap();
-        let mut visited = VisitedMap::new_dense(nodes.as_slice(), solver.max_turns);
-        solver.solve_dijkstra(&mut visited, st);
+        let mut solver = Simulation::new(&graph, 1);
 
         println!("{}", graph);
 
-        assert_eq!(
-            1651,
-            *visited.0.values().flat_map(|v| v.values()).max().unwrap()
-        );
+        assert_eq!(1651, solver.solve_dijkstra());
     }
 }
