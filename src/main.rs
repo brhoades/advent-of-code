@@ -41,6 +41,7 @@ fn main() -> Result<()> {
         (2022, 13) => twenty_two::thirteen::run(input),
         (2022, 14) => twenty_two::fourteen::run(input),
         (2022, 15) => twenty_two::fifteen::run(input),
+        (2022, 16) => twenty_two::sixteen::run(input),
         (2022, _) => bail!("unknown problem number {}", opt.problem),
         (_, _) => bail!("unkown year {}", opt.year),
     }
