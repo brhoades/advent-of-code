@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt;
 use std::rc::{Rc, Weak};
 use std::str::FromStr;
 
@@ -18,6 +19,7 @@ pub struct Valve {
 }
 
 impl Graph {
+    #[allow(dead_code)]
     pub fn start(&self) -> Option<Weak<RefCell<Valve>>> {
         self.valves
             .iter()
@@ -36,7 +38,10 @@ impl FromStr for Graph {
         let mut neighbors: HashMap<&str, Vec<&str>> = Default::default();
 
         for line in s.lines() {
-            let parts = line.split(" ").filter(|l| *l != "").collect::<Vec<_>>();
+            let parts = line
+                .split(" ")
+                .filter(|l| l.trim() != "")
+                .collect::<Vec<_>>();
 
             let (name, rate, neighbor_valves): (&str, u32, Vec<&str>) =
                 if let [_valve, name, _, _, rate] = parts[..5] {
@@ -89,6 +94,36 @@ impl FromStr for Graph {
         Ok(Graph {
             valves: valves.into_values().collect(),
         })
+    }
+}
+
+impl fmt::Display for Graph {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Graph with {} valves:\n", self.valves.len())?;
+        let mut m: Vec<(String, String)> = self
+            .valves
+            .iter()
+            .map(|v| {
+                let v = v.borrow();
+                (
+                    format!("{} (r={})", v.name, v.rate),
+                    v.neighbors
+                        .iter()
+                        .map(|n| n.upgrade().unwrap())
+                        .map(|n| n.borrow().name.clone())
+                        .collect::<Vec<_>>()
+                        .as_slice()
+                        .join(", "),
+                )
+            })
+            .collect();
+        m.sort_by_key(|(v, _)| v.clone());
+
+        for (v, neighbors) in m {
+            write!(f, "  {} => {}\n", v, neighbors)?;
+        }
+
+        Result::Ok(())
     }
 }
 

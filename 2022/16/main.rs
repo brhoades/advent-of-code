@@ -3,7 +3,6 @@ mod graph;
 use std::cell::{Ref, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::convert::AsRef;
-use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
 use graph::{Graph, Valve};
@@ -12,6 +11,18 @@ use advent_of_code::prelude::*;
 
 pub fn run(input: String) -> Result<()> {
     let g: Graph = input.parse()?;
+
+    let nodes: Vec<String> = g.valves.iter().map(|v| v.borrow().name.clone()).collect();
+
+    let mut solver = Simulation::new(&g);
+    let st = g.start().unwrap();
+    let mut visited = VisitedMap::new_dense(nodes.as_slice(), solver.max_turns);
+    solver.solve_dijkstra(&mut visited, st);
+
+    println!(
+        "max flow found: {}",
+        visited.0.values().flat_map(|v| v.values()).max().unwrap()
+    );
 
     Ok(())
 }
@@ -23,7 +34,7 @@ pub struct Simulation<'a> {
     pub cum_flow: u32,
     pub cum_rate: u32,
     pub turn: u32,
-    pub turn_max: u32,
+    pub max_turns: u32,
     /// valves which are open. not stored in Graph to reduce memory use, maybe probably
     pub open_valves: Vec<String>,
     pub open_valves_lookup: HashSet<String>,
@@ -40,11 +51,12 @@ impl<'a> Simulation<'a> {
             cum_flow: 0,
             cum_rate: 0,
             turn: 0,
-            turn_max: 30,
+            max_turns: 30,
         }
     }
 
     // returns maximum flow found
+    #[allow(dead_code)]
     pub fn solve_brute(&mut self, valve: Weak<RefCell<Valve>>) -> Self {
         let valve = valve.upgrade().unwrap();
         let valve = valve.borrow();
@@ -95,25 +107,19 @@ impl<'a> Simulation<'a> {
     }
 
     // returns maximum flow found
-    pub fn solve_dijkstra(
-        &mut self,
-        visited: &mut HashMap<String, u32>,
-        valve: Weak<RefCell<Valve>>,
-    ) {
+    pub fn solve_dijkstra(&mut self, visited: &mut VisitedMap, valve: Weak<RefCell<Valve>>) {
         let valve = valve.upgrade().unwrap();
         let valve = valve.borrow();
-        println!("{}", valve.name);
         // tick: we moved
         if self.tick() {
             return;
         }
-        let vamount = visited.get(valve.name.as_str());
-        println!(
-            "first check: {}\t\t{} > {:?}",
-            valve.name, self.cum_flow, vamount
-        );
-        if vamount.is_none() || self.cum_flow >= *vamount.unwrap() {
-            visited.insert(valve.name.clone(), self.cum_flow);
+        let vamount = visited.get_or_upsert_if_better(&valve.name, &self.turn, &self.cum_flow);
+        // println!(
+        // "first check: {}\t\t{} > {:?}",
+        // valve.name, self.cum_flow, vamount
+        // );
+        if let Some(_) = vamount {
         } else {
             return;
         }
@@ -122,15 +128,13 @@ impl<'a> Simulation<'a> {
             let rcv: Rc<RefCell<Valve>> = wv.upgrade().unwrap();
             let v: Ref<Valve> = rcv.borrow();
 
-            let visited_amount = visited.get(v.name.as_str());
-            println!(
-                "second check: {}\t{} > {:?}",
-                v.name, self.cum_flow, visited_amount,
-            );
+            let vamount = visited.get_or_upsert_if_better(&v.name, &self.turn, &self.cum_flow);
+            // println!(
+            // "second check: {}\t{} > {:?}",
+            // v.name, self.cum_flow, vamount,
+            // );
 
-            if visited_amount.is_none() || self.cum_flow >= *visited_amount.unwrap() {
-                visited.insert(v.name.clone(), self.cum_flow);
-
+            if vamount.is_some() {
                 let mut c = self.clone();
                 c.solve_dijkstra(visited, wv.clone());
             }
@@ -140,15 +144,9 @@ impl<'a> Simulation<'a> {
                 let mut c = self.clone();
                 let done = c.tick();
 
-                let visited_amount = visited.get(v.name.as_str());
-                println!(
-                    "third check: {}\t{} > {:?}",
-                    v.name, self.cum_flow, visited_amount,
-                );
-                if !done && (visited_amount.is_none() || self.cum_flow >= *visited_amount.unwrap())
-                {
-                    visited.insert(v.name.clone(), self.cum_flow);
-
+                let vamount = visited.get_or_upsert_if_better(&v.name, &self.turn, &self.cum_flow);
+                // println!("third check: {}\t{} > {:?}", v.name, self.cum_flow, vamount);
+                if !done && vamount.is_some() {
                     c.cum_rate += v.rate;
                     c.open_valves.push(v.name.clone());
                     c.open_valves_lookup.insert(v.name.clone());
@@ -163,17 +161,18 @@ impl<'a> Simulation<'a> {
         self.turn += 1;
         self.cum_flow += self.cum_rate;
 
-        self.turn >= self.turn_max
+        self.turn > self.max_turns
     }
 }
 
 /// specialized HashMap for Simulation. Maps a neighbor node
 /// to a by-turn "best" score tracker.
 #[derive(Debug, Default)]
-struct VisitedMap(HashMap<String, HashMap<u32, u32>>);
+pub struct VisitedMap(HashMap<String, HashMap<u32, u32>>);
 
 impl VisitedMap {
     /// new returns a sparsely allocated map.
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Default::default()
     }
@@ -198,12 +197,12 @@ impl VisitedMap {
         score: &u32,
     ) -> Option<u32> {
         let mut ret = None;
-        let mut turns = self.0.entry(neighbor.to_string()).or_insert_with(|| {
+        let turns = self.0.entry(neighbor.to_string()).or_insert_with(|| {
             ret = Some(*score);
             [(*turn, score.clone())].into_iter().collect()
         });
 
-        let mut v = turns.entry(*turn).or_insert_with(|| {
+        let v = turns.entry(*turn).or_insert_with(|| {
             ret = Some(*score);
             *turn
         });
@@ -239,13 +238,23 @@ Valve HH has flow rate=22; tunnel leads to valve GG
 Valve II has flow rate=0; tunnels lead to valves AA, JJ
 Valve JJ has flow rate=21; tunnel leads to valve II"#;
 
-        let graph: Graph = input.parse().unwrap(); //
+        let graph: Graph = input.parse().unwrap();
+        let nodes: Vec<String> = graph
+            .valves
+            .iter()
+            .map(|v| v.borrow().name.clone())
+            .collect();
 
         let mut solver = Simulation::new(&graph);
         let st = graph.start().unwrap();
-        let mut visited = HashMap::new();
+        let mut visited = VisitedMap::new_dense(nodes.as_slice(), solver.max_turns);
         solver.solve_dijkstra(&mut visited, st);
 
-        assert_eq!(1651, *visited.values().max().unwrap());
+        println!("{}", graph);
+
+        assert_eq!(
+            1651,
+            *visited.0.values().flat_map(|v| v.values()).max().unwrap()
+        );
     }
 }
