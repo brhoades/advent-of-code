@@ -1,9 +1,7 @@
 mod graph;
 
-use std::cell::{Ref, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::convert::AsRef;
-use std::rc::{Rc, Weak};
 
 use graph::{Graph, Valve};
 
@@ -30,7 +28,7 @@ pub struct Simulation<'a> {
     /// player can spawn up to max_players for time cost = 4
     pub max_players: usize,
     /// valves which are open. not stored in Graph to reduce memory use, maybe probably
-    pub open_valves: HashSet<String>,
+    pub open_valves: HashSet<&'a String>,
     pub graph: &'a Graph,
 }
 
@@ -50,15 +48,10 @@ impl<'a> Simulation<'a> {
 
     pub fn solve_dijkstra(&mut self) -> u32 {
         let st = self.graph.start().unwrap();
-        let nodes: Vec<String> = self
-            .graph
-            .valves
-            .values()
-            .map(|v| v.borrow().name.clone())
-            .collect();
+        let nodes: Vec<&String> = self.graph.valves.values().map(|v| &v.name).collect();
         let mut visited = VisitedMap::new_dense(nodes.as_slice(), self.max_turns);
 
-        self.solve_dijkstra_from_node(&mut visited, vec![st.to_owned()]);
+        self.solve_dijkstra_from_node(&mut visited, vec![st]);
         visited
             .0
             .values()
@@ -82,7 +75,7 @@ impl<'a> Simulation<'a> {
     pub fn solve_dijkstra_from_node(
         &mut self,
         visited: &mut VisitedMap,
-        mut player_pos: Vec<Rc<RefCell<Valve>>>,
+        mut player_pos: Vec<&Valve>,
     ) -> Option<()> {
         // tick: we are doing a round and actions are late
         if self.tick() {
@@ -90,69 +83,59 @@ impl<'a> Simulation<'a> {
         }
 
         // update visited
-        for rcp in &player_pos {
-            let p: Ref<Valve> = rcp.borrow();
-            visited.get_or_upsert_if_better(&p.name, &self.turn, &self.cum_flow);
+        for pos in &player_pos {
+            visited.get_or_upsert_if_better(&pos.name, &self.turn, &self.cum_flow);
         }
 
-        let mut c = self.clone();
         // Always try to spawn players if we can. Recurse on the possiblity of doing that
         // and later on the possibility of not. This function which did the spawning,
         // (w/ self, not c) will continue without.
-        if c.turn - c.max_turns > 5 && player_pos.len() < c.max_players {
+        if self.max_turns - self.turn > 5 && player_pos.len() < self.max_players {
+            let mut c = self.clone();
             for _ in 0..4 {
                 if c.tick() {
                     return Some(());
                 }
             }
 
-            let pos = player_pos.pop().unwrap();
-            return c.solve_dijkstra_from_node(visited, vec![pos.clone(), pos]);
+            let pos = player_pos.first().unwrap();
+            return c.solve_dijkstra_from_node(visited, vec![pos, pos]);
         }
 
+        let mut c = self.clone();
         // We try to open valves first, since that's likely the most effectual in depth-first
         // pathfinding: we move the players. Outcome #2 to do nothing is implicit
         // when we return no "good" next moves.
         let mut rem_pos = vec![];
-        for rcp in &player_pos {
-            let p: Ref<Valve> = rcp.borrow();
-
-            if p.rate == 0 || self.open_valves.contains(&p.name) {
-                rem_pos.push(rcp.clone());
+        for pos in player_pos {
+            if pos.rate == 0 || self.open_valves.contains(&pos.name) {
+                rem_pos.push(pos);
                 continue;
             }
 
             // println!("third check: {}\t{} > {:?}", v.name, self.cum_flow, vamount);
-            c.cum_rate += p.rate;
-            c.open_valves.insert(p.name.clone());
+            c.cum_rate += pos.rate;
+            c.open_valves.insert(&pos.name);
         }
+        player_pos = rem_pos;
 
         let mut change = true;
         let next_flow = self.cum_flow + self.cum_rate;
         let mut ret = None; // non-none if found at least one answer
-        while change && rem_pos.len() > 0 {
+        while change && player_pos.len() > 0 {
             change = false;
             let mut next_pos = vec![];
 
-            for rcp in &rem_pos {
-                let p: Ref<Valve> = rcp.borrow();
-
+            for pos in &player_pos {
                 if let Some(next) = visited.get_best_next_node(
-                    &p.neighbors
-                        .iter()
-                        .map(|wv| {
-                            let rcv = wv.upgrade().unwrap();
-                            let v = rcv.borrow();
-                            v.name.clone()
-                        })
-                        .collect(),
+                    &pos.neighbors().iter().map(|v| &v.name).collect(),
                     &self.turn,
                     &next_flow,
                 ) {
                     change = true;
-                    next_pos.push(self.graph.valves.get(&next).unwrap().clone());
+                    next_pos.push(self.graph.valves.get(&next).unwrap());
                 } else {
-                    next_pos.push(rcp.clone());
+                    next_pos.push(pos);
                 }
             }
 
@@ -164,20 +147,11 @@ impl<'a> Simulation<'a> {
             }
         }
 
-        // at this point, rem_pos == 0
         // so finally, try just not moving anywhere (after turning dials) if it's OK
-        if player_pos.iter().all(|rcp| {
-            let p: Ref<Valve> = rcp.borrow();
-            let neighs = p.neighbors_ref();
+        if player_pos.iter().all(|p| {
             visited
                 .get_best_next_node(
-                    &neighs
-                        .iter()
-                        .map(|n| {
-                            let v = n.borrow();
-                            v.name.clone()
-                        })
-                        .collect(),
+                    &p.neighbors().iter().map(|n| &n.name).collect(),
                     &self.turn,
                     &next_flow,
                 )
@@ -256,7 +230,7 @@ impl VisitedMap {
     /// evaluated against a score. Among equal options, the "first" wins.
     pub fn get_best_next_node(
         &mut self,
-        valves: &Vec<String>,
+        valves: &Vec<&String>,
         turn: &u32,
         score: &u32,
     ) -> Option<String> {
@@ -264,7 +238,12 @@ impl VisitedMap {
         // is greater
         valves
             .iter()
-            .map(|valve| (valve.clone(), self.0.get(valve).and_then(|t| t.get(turn))))
+            .map(|valve| {
+                (
+                    valve.clone(),
+                    self.0.get(valve.as_str()).and_then(|t| t.get(turn)),
+                )
+            })
             .filter_map(|(valve, last_best)| {
                 match last_best {
                     None => Some((valve, *score)), // never moved there before
