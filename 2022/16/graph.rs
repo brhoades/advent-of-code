@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
 use std::fmt;
 use std::rc::{Rc, Weak};
@@ -8,7 +8,7 @@ use advent_of_code::prelude::*;
 
 #[derive(Clone, Debug, Default)]
 pub struct Graph {
-    pub valves: Vec<Rc<RefCell<Valve>>>,
+    pub valves: HashMap<String, Rc<RefCell<Valve>>>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -18,13 +18,19 @@ pub struct Valve {
     pub rate: u32,
 }
 
+impl Valve {
+    pub fn neighbors_ref(&self) -> Vec<Rc<RefCell<Valve>>> {
+        self.neighbors
+            .iter()
+            .map(|n| n.upgrade().unwrap())
+            .collect()
+    }
+}
+
 impl Graph {
     #[allow(dead_code)]
-    pub fn start(&self) -> Option<Weak<RefCell<Valve>>> {
-        self.valves
-            .iter()
-            .find(|v| v.borrow().name == "AA")
-            .map(|v| Rc::downgrade(v))
+    pub fn start(&self) -> Option<&Rc<RefCell<Valve>>> {
+        self.valves.get("AA")
     }
 }
 
@@ -34,7 +40,7 @@ impl FromStr for Graph {
     /// takes line-by-line representation of a cyclic undirected graph network of valves
     /// and returns a Graph incorporating them.
     fn from_str(s: &str) -> Result<Self> {
-        let mut valves: HashMap<&str, Rc<RefCell<Valve>>> = Default::default();
+        let mut valves: HashMap<String, Rc<RefCell<Valve>>> = Default::default();
         let mut neighbors: HashMap<&str, Vec<&str>> = Default::default();
 
         for line in s.lines() {
@@ -61,7 +67,7 @@ impl FromStr for Graph {
                 };
 
             valves.insert(
-                name,
+                name.to_string(),
                 Rc::new(RefCell::new(Valve {
                     name: name.to_string(),
                     neighbors: vec![],
@@ -88,12 +94,10 @@ impl FromStr for Graph {
             })
             .collect::<Result<_>>()?;
         for (name, v) in &valves {
-            v.borrow_mut().neighbors = neighbors.remove(name).unwrap();
+            v.borrow_mut().neighbors = neighbors.remove(name.as_str()).unwrap();
         }
 
-        Ok(Graph {
-            valves: valves.into_values().collect(),
-        })
+        Ok(Graph { valves })
     }
 }
 
@@ -102,7 +106,7 @@ impl fmt::Display for Graph {
         write!(f, "Graph with {} valves:\n", self.valves.len())?;
         let mut m: Vec<(String, String)> = self
             .valves
-            .iter()
+            .values()
             .map(|v| {
                 let v = v.borrow();
                 (
@@ -124,6 +128,22 @@ impl fmt::Display for Graph {
         }
 
         Result::Ok(())
+    }
+}
+
+impl Graph {
+    pub fn get(&self, name: &str) -> Option<Rc<RefCell<Valve>>> {
+        self.valves.get(name).cloned()
+    }
+
+    pub fn get_neighbors_ref(&self, name: &str) -> Vec<Rc<RefCell<Valve>>> {
+        self.valves
+            .get(name)
+            .map(|n| n.borrow().neighbors.clone())
+            .unwrap_or_else(|| vec![])
+            .iter()
+            .map(|v| v.upgrade().unwrap())
+            .collect()
     }
 }
 
