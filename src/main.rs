@@ -23,11 +23,19 @@ struct Opt {
     /// Input file
     #[structopt(parse(from_os_str))]
     input: PathBuf,
+
+    #[structopt(long = "log-level", short = "l")]
+    log_level: Option<log::LevelFilter>,
 }
 
 fn main() -> Result<()> {
+    pretty_env_logger::init();
     let opt = Opt::from_args();
     let input = read_to_string(opt.input).expect("failed to read input file");
+
+    if let Some(lvl) = opt.log_level {
+        log::set_max_level(lvl);
+    }
 
     match (opt.year, opt.problem) {
         (2022, 5) => twenty_two::five::run(input),
