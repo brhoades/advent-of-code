@@ -2,6 +2,7 @@ mod graph;
 
 use std::collections::{HashMap, HashSet};
 use std::convert::AsRef;
+use std::fmt;
 
 use graph::{Graph, Valve};
 
@@ -21,15 +22,19 @@ pub fn run(input: String) -> Result<()> {
 #[derive(Clone, Debug)]
 pub struct Simulation<'a> {
     /// cumulative flow so far
-    pub cum_flow: u32,
-    pub cum_rate: u32,
-    pub turn: u32,
-    pub max_turns: u32,
+    max_turns: u32,
+    graph: &'a Graph,
     /// player can spawn up to max_players for time cost = 4
-    pub max_players: usize,
-    /// valves which are open. not stored in Graph to reduce memory use, maybe probably
-    pub open_valves: HashSet<&'a String>,
-    pub graph: &'a Graph,
+    max_players: usize,
+
+    // live mutated game state below
+    cum_flow: u32,
+    cum_rate: u32,
+    turn: u32,
+    /// player positions
+    players: Vec<Player<'a>>,
+    /// valves which are open
+    open_valves: HashSet<&'a String>,
 }
 
 /// dumb brute force solver with obvious enhancements
@@ -37,21 +42,35 @@ impl<'a> Simulation<'a> {
     pub fn new(graph: &'a Graph, max_players: u32) -> Self {
         Self {
             graph,
+            max_turns: 30,
+            max_players: max_players as usize,
+
             open_valves: Default::default(),
             cum_flow: 0,
             cum_rate: 0,
             turn: 0,
-            max_turns: 30,
-            max_players: max_players as usize,
+            players: vec![],
         }
     }
 
     pub fn solve_dijkstra(&mut self) -> u32 {
-        let st = self.graph.start().unwrap();
+        self.players
+            .push(Player::new("1", self.graph.start().unwrap()));
         let nodes: Vec<&String> = self.graph.valves.values().map(|v| &v.name).collect();
         let mut visited = VisitedMap::new_dense(nodes.as_slice(), self.max_turns);
 
-        self.solve_dijkstra_from_node(&mut visited, vec![st]);
+        // we always spawn up to max_players ASAP
+        if self.max_players > 2 {
+            // spawn mechanics are different otherwise
+            unimplemented!("only up to 2 players are supported");
+        } else if self.max_players == 2 {
+            let pos = self.graph.start().unwrap();
+            if self.spawn_player().is_some() {
+                self.players.push(Player::new("2", pos));
+            }
+        }
+
+        self.solve_dijkstra_from_node(&mut visited);
         visited
             .0
             .values()
@@ -62,112 +81,109 @@ impl<'a> Simulation<'a> {
     }
 
     /// Runs dijkstra recursively. There are three outcomes for each player:
-    ///   1. spawn new player
     ///   2. open a valve
     ///   3. move to a cell
     ///   4. do nothing
     ///
     ///  Afterwards, the function call recurses in order to evaluate all remaining
-    ///  possibilities from the current tile.
+    ///  possibilities from the current tile. self is assumed cloned and is not cleaned up
+    ///  after.
     ///
     ///  Note: solver does not handle more than 2 max players well. It'll waste all players turns
     ///  when waiting for new players to spawn.
-    pub fn solve_dijkstra_from_node(
-        &mut self,
-        visited: &mut VisitedMap,
-        mut player_pos: Vec<&Valve>,
-    ) -> Option<()> {
-        // tick: we are doing a round and actions are late
+    pub fn solve_dijkstra_from_node(&mut self, visited: &mut VisitedMap) -> Option<()> {
+        // tick: we are starting a round and actions happen first
         if self.tick() {
             return Some(());
         }
 
         // update visited
-        for pos in &player_pos {
-            visited.get_or_upsert_if_better(&pos.name, &self.turn, &self.cum_flow);
+        for player in &self.players {
+            visited.get_or_upsert_if_better(&player.pos.name, &self.turn, &self.cum_flow);
         }
 
-        // Always try to spawn players if we can. Recurse on the possiblity of doing that
-        // and later on the possibility of not. This function which did the spawning,
-        // (w/ self, not c) will continue without.
-        if self.max_turns - self.turn > 5 && player_pos.len() < self.max_players {
-            let mut c = self.clone();
-            for _ in 0..4 {
-                if c.tick() {
-                    return Some(());
-                }
-            }
-
-            let pos = player_pos.first().unwrap();
-            return c.solve_dijkstra_from_node(visited, vec![pos, pos]);
-        }
-
-        let mut c = self.clone();
         // We try to open valves first, since that's likely the most effectual in depth-first
         // pathfinding: we move the players. Outcome #2 to do nothing is implicit
         // when we return no "good" next moves.
-        let mut rem_pos = vec![];
-        for pos in player_pos {
-            if pos.rate == 0 || self.open_valves.contains(&pos.name) {
-                rem_pos.push(pos);
+        for player in &mut self.players {
+            let pos = player.pos;
+            if player.done || pos.rate == 0 || self.open_valves.contains(&pos.name) {
                 continue;
             }
 
-            // println!("third check: {}\t{} > {:?}", v.name, self.cum_flow, vamount);
-            c.cum_rate += pos.rate;
-            c.open_valves.insert(&pos.name);
+            println!("{}: open valve {} w/ rate {}", player, pos.name, pos.rate);
+            self.cum_rate += pos.rate;
+            self.open_valves.insert(&pos.name);
         }
-        player_pos = rem_pos;
 
-        let mut change = true;
+        let mut change = self.players.iter().any(|p| !p.done);
         let next_flow = self.cum_flow + self.cum_rate;
         let mut ret = None; // non-none if found at least one answer
-        while change && player_pos.len() > 0 {
+        while change {
             change = false;
-            let mut next_pos = vec![];
+            let mut cnext = self.clone();
 
-            for pos in &player_pos {
-                if let Some(next) = visited.get_best_next_node(
-                    &pos.neighbors().iter().map(|v| &v.name).collect(),
-                    &self.turn,
-                    &next_flow,
-                ) {
-                    change = true;
-                    next_pos.push(self.graph.valves.get(&next).unwrap());
-                } else {
-                    next_pos.push(pos);
+            for player in &mut cnext.players {
+                if player.done {
+                    continue;
                 }
+
+                let neighbor_valves = player.pos.neighbors().iter().map(|v| &v.name).collect();
+                if let Some(next) =
+                    visited.get_best_next_node(&neighbor_valves, &self.turn, &next_flow)
+                {
+                    change = true;
+                    player.pos = self.graph.valves.get(&next).unwrap();
+                } // otherwise: we don't move, no change
             }
 
-            if c.clone()
-                .solve_dijkstra_from_node(visited, next_pos)
-                .is_some()
-            {
+            if cnext.solve_dijkstra_from_node(visited).is_some() {
                 ret = Some(());
             }
         }
 
-        // so finally, try just not moving anywhere (after turning dials) if it's OK
-        if player_pos.iter().all(|p| {
+        // So finally, try just not moving anywhere (after turning dials) if
+        // not been done at least by one player.
+        let just_recurse = self.players.iter().any(|player| {
+            let neighbor_valves = player.pos.neighbors().iter().map(|v| &v.name).collect();
             visited
-                .get_best_next_node(
-                    &p.neighbors().iter().map(|n| &n.name).collect(),
-                    &self.turn,
-                    &next_flow,
-                )
+                .get_best_next_node(&neighbor_valves, &self.turn, &next_flow)
                 .is_some()
-        }) {
-            return c.solve_dijkstra_from_node(visited, player_pos);
+        });
+
+        if just_recurse {
+            if self.solve_dijkstra_from_node(visited).is_some() {
+                return Some(());
+            }
         }
         ret
     }
 
-    // ticks once and returns true if done
+    /// ticks once:
+    ///   * tracking turns
+    ///   * updating running flow
+    ///   * resetting player moved status
+    ///   * returning true when done
     pub fn tick(&mut self) -> bool {
         self.turn += 1;
         self.cum_flow += self.cum_rate;
+        for p in &mut self.players {
+            p.done = false;
+        }
 
         self.turn > self.max_turns
+    }
+
+    /// spawn a player on the passed valve. Automatically ticks.
+    /// If time runs out before spawn, reutrns None.
+    fn spawn_player(&mut self) -> Option<()> {
+        for _ in 0..4 {
+            if self.tick() {
+                return None;
+            }
+        }
+
+        Some(())
     }
 }
 
@@ -253,6 +269,29 @@ impl VisitedMap {
             })
             .max_by_key(|t| t.1)
             .map(|(v, _)| v.clone())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Player<'a> {
+    pub pos: &'a Valve,
+    pub done: bool,
+    pub name: String,
+}
+
+impl<'a> Player<'a> {
+    pub fn new(name: &str, pos: &'a Valve) -> Self {
+        Self {
+            pos,
+            done: false,
+            name: name.to_string(),
+        }
+    }
+}
+
+impl<'a> fmt::Display for Player<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "player {}", self.name)
     }
 }
 

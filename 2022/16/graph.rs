@@ -151,6 +151,6 @@ Valve HH has flow rate=22; tunnel leads to valve GG
 Valve II has flow rate=0; tunnels lead to valves AA, JJ
 Valve JJ has flow rate=21; tunnel leads to valve II"#;
 
-        let graph: Graph = input.parse().unwrap();
+        let _graph: Graph = input.parse().unwrap();
     }
 }
