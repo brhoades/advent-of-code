@@ -13,9 +13,43 @@ pub fn run(input: String) -> Result<()> {
 
     let mut solver = Simulation::new(&g, 1);
 
-    println!("max flow found: {}", solver.solve_dijkstra());
+    println!("pt1: max flow found: {}", solver.solve_dijkstra());
+
+    let mut solver = Simulation::new(&g, 2);
+    println!("pt2: max flow found: {}", solver.solve_dijkstra());
 
     Ok(())
+}
+
+#[derive(Clone, Debug)]
+pub enum Action {
+    Move {
+        player: usize,
+        from: String,
+        to: String,
+    },
+    Stay {
+        player: usize,
+        at: String,
+    },
+    Open {
+        player: usize,
+        valve: String,
+    },
+}
+
+impl Action {
+    pub fn mv(player: usize, from: String, to: String) -> Self {
+        Self::Move { player, from, to }
+    }
+
+    pub fn stay(player: usize, at: String) -> Self {
+        Self::Stay { player, at }
+    }
+
+    pub fn open(player: usize, valve: String) -> Self {
+        Self::Open { player, valve }
+    }
 }
 
 /// SimState captures the state of the simulation in the moment.
@@ -35,6 +69,9 @@ pub struct Simulation<'a> {
     players: Vec<Player<'a>>,
     /// valves which are open
     open_valves: HashSet<&'a String>,
+
+    /// chronological actions indexed by turn
+    actions: Vec<Action>,
 }
 
 /// dumb brute force solver with obvious enhancements
@@ -48,8 +85,9 @@ impl<'a> Simulation<'a> {
             open_valves: Default::default(),
             cum_flow: 0,
             cum_rate: 0,
-            turn: 0,
+            turn: 1,
             players: vec![],
+            actions: Vec::new(),
         }
     }
 
@@ -81,97 +119,106 @@ impl<'a> Simulation<'a> {
     }
 
     /// Runs dijkstra recursively. There are three outcomes for each player:
-    ///   2. open a valve
-    ///   3. move to a cell
-    ///   4. do nothing
+    ///   1. open a valve
+    ///   2. move to a cell
+    ///   3. do nothing
     ///
-    ///  Afterwards, the function call recurses in order to evaluate all remaining
-    ///  possibilities from the current tile. self is assumed cloned and is not cleaned up
-    ///  after.
-    ///
-    ///  Note: solver does not handle more than 2 max players well. It'll waste all players turns
-    ///  when waiting for new players to spawn.
+    ///  After making one decision, the function recurses to finish the remaining moves.
+    ///  If all players are done, a tick occurs and it repeats.
+    ///  self is assumed cloned and is not cleaned up after.
     pub fn solve_dijkstra_from_node(&mut self, visited: &mut VisitedMap) -> Option<()> {
-        // tick: we are starting a round and actions happen first
-        let done = self.tick();
+        if self.players.iter().all(|p| p.done) {
+            // tick: we are starting a round and actions happen first
+            let done = self.tick();
 
-        let mut change = false;
-        // update visited
-        for player in &self.players {
-            if visited
-                .get_or_upsert_if_better(&player.pos.name, &self.turn, &self.cum_flow)
-                .is_some()
-            {
-                debug!(
-                    "{}: has new best for {} on {} on turn {}",
-                    player, player.pos.name, self.cum_flow, self.turn
-                );
-                change = true;
+            let mut change = false;
+            // update visited
+            for player in &self.players {
+                if visited
+                    .get_or_upsert_if_better(&player.pos.name, &self.turn, &self.cum_flow)
+                    .is_some()
+                {
+                    debug!(
+                        "{}: has new best for {} on {} on turn {}",
+                        player, player.pos.name, self.cum_flow, self.turn
+                    );
+                    change = true;
+                }
+            }
+
+            if done {
+                return Some(());
+            }
+            if !change {
+                debug!("discarding path");
+                return None;
             }
         }
 
-        if done {
+        if self.turn == self.max_turns {
             return Some(());
         }
-        if !change {
-            debug!("discarding path");
-            return None;
-        }
+
+        let mut ret = None; // non-none if found at least one answer
 
         // We try to open valves first, since that's likely the most effectual in depth-first
-        // pathfinding: we move the players. Outcome #2 to do nothing is implicit
-        // when we return no "good" next moves.
-        for player in &mut self.players {
+        // pathfinding: we move the players.
+        //
+        // We evaluate the possibility of opening valves and not by recursing after each
+        // action and continuing top-level.
+        for (i, player) in self.players.iter().enumerate() {
             let pos = player.pos;
             if player.done || pos.rate == 0 || self.open_valves.contains(&pos.name) {
                 continue;
             }
 
+            let mut c = self.clone();
+
             debug!("{}: open valve {} w/ rate {}", player, pos.name, pos.rate);
-            self.cum_rate += pos.rate;
-            self.open_valves.insert(&pos.name);
+            c.open(i);
+            if c.solve_dijkstra_from_node(visited).is_some() {
+                ret = Some(());
+            }
         }
 
-        let mut change = self.players.iter().any(|p| !p.done);
+        let players = self
+            .players
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| !p.done)
+            .map(|(i, p)| (i, p.pos))
+            .collect::<Vec<_>>();
+        let mut change = self.turn < self.max_turns && players.len() != 0;
         let next_flow = self.cum_flow + self.cum_rate;
-        let mut ret = None; // non-none if found at least one answer
         while change {
             change = false;
-            let mut cnext = self.clone();
+            let mut c = self.clone();
 
-            for player in &mut cnext.players {
-                if player.done {
-                    continue;
-                }
-
-                let neighbor_valves = player.pos.neighbors().iter().map(|v| &v.name).collect();
+            for (i, pos) in &players {
+                let neighbor_valves = pos.neighbors().iter().map(|v| &v.name).collect();
                 if let Some(next) =
-                    visited.get_best_next_node(&neighbor_valves, &(cnext.turn + 1), &next_flow)
+                    visited.get_best_next_node(&neighbor_valves, &(self.turn + 1), &next_flow)
                 {
                     change = true;
-                    debug!(
-                        "change loop found: {}: {} -> {}",
-                        player, player.pos.name, next
-                    );
-                    player.pos = cnext.graph.valves.get(&next).unwrap();
-                    player.done = true;
+                    debug!("change loop found: player {}: {} -> {}", i, pos.name, next);
+                    c.mv(*i, &next);
                 } else {
                     // otherwise: we don't move, no change
                     debug!(
-                        "change loop discarded: {}: {} -> {:?}",
-                        player, player.pos.name, neighbor_valves
+                        "change loop discarded: player {}: {} -> {:?}",
+                        i, pos.name, neighbor_valves
                     );
                 }
             }
 
-            if cnext.solve_dijkstra_from_node(visited).is_some() {
+            if change && c.solve_dijkstra_from_node(visited).is_some() {
                 debug!(
                     "solver returned:\n{}\nturn:{}\nflow: {}\nrate: {}\nplayers: {}",
-                    cnext.graph,
-                    cnext.turn,
-                    cnext.cum_flow,
-                    cnext.cum_rate,
-                    cnext.players.iter().fold("".to_string(), |acc, p| format!(
+                    c.graph,
+                    c.turn,
+                    c.cum_flow,
+                    c.cum_rate,
+                    c.players.iter().fold("".to_string(), |acc, p| format!(
                         "{}\n  {} @ valve {}",
                         acc, p, p.pos.name
                     ))
@@ -181,25 +228,40 @@ impl<'a> Simulation<'a> {
         }
 
         // So finally, try just not moving anywhere (after turning dials) if
-        // not been done at least by one player.
-        let just_recurse = self.players.iter().any(|player| {
-            let neighbor_valves = player.pos.neighbors().iter().map(|v| &v.name).collect();
-            visited
-                .get_best_next_node(&neighbor_valves, &self.turn, &next_flow)
-                .is_some()
-        });
+        // a player isn't done and hasn't moved.
+        let mut can_wait = self.turn + 1 < self.max_turns;
+        let players = self
+            .players
+            .iter()
+            .enumerate()
+            .filter_map(|(i, p)| if p.done { Some((i, p.pos)) } else { None })
+            .collect::<Vec<_>>();
 
-        if just_recurse {
-            debug!("solver is not moving");
-            if self.solve_dijkstra_from_node(visited).is_some() {
-                return Some(());
-            } else {
-                debug!("solver did not move and it failed to bottom out");
+        if players.len() != 0 {
+            let mut c = self.clone();
+
+            for (i, pos) in players {
+                let player_pos = vec![&pos.name];
+                can_wait = can_wait
+                    || visited
+                        .get_best_next_node(&player_pos, &(self.turn + 1), &next_flow)
+                        .is_some();
+                c.stay(i)
+            }
+
+            if can_wait {
+                debug!("solver can just wait for at least one player");
+                if self.solve_dijkstra_from_node(visited).is_some() {
+                    return Some(());
+                }
                 return ret;
             }
-        }
 
-        debug!("solver fallthrough with just_recurse false");
+            debug!(
+                "solver cannot just wait and cannot move on turn {}, returning ret={:?}",
+                self.turn, ret
+            );
+        }
         ret
     }
 
@@ -215,7 +277,32 @@ impl<'a> Simulation<'a> {
             p.done = false;
         }
 
-        self.turn > self.max_turns
+        self.turn >= self.max_turns
+    }
+
+    pub fn mv(&mut self, player: usize, to: &String) {
+        let mut p = self.players.get_mut(player).unwrap();
+        self.actions
+            .push(Action::mv(player, p.pos.name.clone(), to.clone()));
+
+        p.pos = self.graph.get(to).unwrap();
+        p.done = true;
+    }
+
+    pub fn stay(&mut self, player: usize) {
+        let mut p = self.players.get_mut(player).unwrap();
+        self.actions.push(Action::stay(player, p.pos.name.clone()));
+
+        p.done = true;
+    }
+
+    pub fn open(&mut self, player: usize) {
+        let mut p = self.players.get_mut(player).unwrap();
+        self.actions.push(Action::open(player, p.pos.name.clone()));
+
+        self.cum_rate += p.pos.rate;
+        self.open_valves.insert(&p.pos.name);
+        p.done = true;
     }
 
     /// spawn a player on the passed valve. Automatically ticks.
@@ -350,7 +437,6 @@ mod test {
 
     #[test]
     fn test_solve_pt1_ex() {
-        init();
         let input = r#"Valve AA has flow rate=0; tunnels lead to valves DD, II, BB
 Valve BB has flow rate=13; tunnels lead to valves CC, AA
 Valve CC has flow rate=2; tunnels lead to valves DD, BB
@@ -368,5 +454,27 @@ Valve JJ has flow rate=21; tunnel leads to valve II"#;
         println!("{}", graph);
 
         assert_eq!(1651, solver.solve_dijkstra());
+    }
+
+    #[test]
+    fn test_solve_pt2_ex() {
+        init();
+        let input = r#"Valve AA has flow rate=0; tunnels lead to valves DD, II, BB
+Valve BB has flow rate=13; tunnels lead to valves CC, AA
+Valve CC has flow rate=2; tunnels lead to valves DD, BB
+Valve DD has flow rate=20; tunnels lead to valves CC, AA, EE
+Valve EE has flow rate=3; tunnels lead to valves FF, DD
+Valve FF has flow rate=0; tunnels lead to valves EE, GG
+Valve GG has flow rate=0; tunnels lead to valves FF, HH
+Valve HH has flow rate=22; tunnel leads to valve GG
+Valve II has flow rate=0; tunnels lead to valves AA, JJ
+Valve JJ has flow rate=21; tunnel leads to valve II"#;
+
+        let graph: Graph = input.parse().unwrap();
+        let mut solver = Simulation::new(&graph, 2);
+
+        println!("{}", graph);
+
+        assert_eq!(1707, solver.solve_dijkstra());
     }
 }
