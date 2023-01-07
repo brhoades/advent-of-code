@@ -57,7 +57,7 @@ impl<'a> Simulation<'a> {
         self.players
             .push(Player::new("1", self.graph.start().unwrap()));
         let nodes: Vec<&String> = self.graph.valves.values().map(|v| &v.name).collect();
-        let mut visited = VisitedMap::new_dense(nodes.as_slice(), self.max_turns);
+        let mut visited = VisitedMap::new(nodes.as_slice());
 
         // we always spawn up to max_players ASAP
         if self.max_players > 2 {
@@ -93,13 +93,29 @@ impl<'a> Simulation<'a> {
     ///  when waiting for new players to spawn.
     pub fn solve_dijkstra_from_node(&mut self, visited: &mut VisitedMap) -> Option<()> {
         // tick: we are starting a round and actions happen first
-        if self.tick() {
-            return Some(());
-        }
+        let done = self.tick();
 
+        let mut change = false;
         // update visited
         for player in &self.players {
-            visited.get_or_upsert_if_better(&player.pos.name, &self.turn, &self.cum_flow);
+            if visited
+                .get_or_upsert_if_better(&player.pos.name, &self.turn, &self.cum_flow)
+                .is_some()
+            {
+                debug!(
+                    "{}: has new best for {} on {} on turn {}",
+                    player, player.pos.name, self.cum_flow, self.turn
+                );
+                change = true;
+            }
+        }
+
+        if done {
+            return Some(());
+        }
+        if !change {
+            debug!("discarding path");
+            return None;
         }
 
         // We try to open valves first, since that's likely the most effectual in depth-first
@@ -111,7 +127,7 @@ impl<'a> Simulation<'a> {
                 continue;
             }
 
-            println!("{}: open valve {} w/ rate {}", player, pos.name, pos.rate);
+            debug!("{}: open valve {} w/ rate {}", player, pos.name, pos.rate);
             self.cum_rate += pos.rate;
             self.open_valves.insert(&pos.name);
         }
@@ -130,14 +146,36 @@ impl<'a> Simulation<'a> {
 
                 let neighbor_valves = player.pos.neighbors().iter().map(|v| &v.name).collect();
                 if let Some(next) =
-                    visited.get_best_next_node(&neighbor_valves, &self.turn, &next_flow)
+                    visited.get_best_next_node(&neighbor_valves, &(cnext.turn + 1), &next_flow)
                 {
                     change = true;
-                    player.pos = self.graph.valves.get(&next).unwrap();
-                } // otherwise: we don't move, no change
+                    debug!(
+                        "change loop found: {}: {} -> {}",
+                        player, player.pos.name, next
+                    );
+                    player.pos = cnext.graph.valves.get(&next).unwrap();
+                    player.done = true;
+                } else {
+                    // otherwise: we don't move, no change
+                    debug!(
+                        "change loop discarded: {}: {} -> {:?}",
+                        player, player.pos.name, neighbor_valves
+                    );
+                }
             }
 
             if cnext.solve_dijkstra_from_node(visited).is_some() {
+                debug!(
+                    "solver returned:\n{}\nturn:{}\nflow: {}\nrate: {}\nplayers: {}",
+                    cnext.graph,
+                    cnext.turn,
+                    cnext.cum_flow,
+                    cnext.cum_rate,
+                    cnext.players.iter().fold("".to_string(), |acc, p| format!(
+                        "{}\n  {} @ valve {}",
+                        acc, p, p.pos.name
+                    ))
+                );
                 ret = Some(());
             }
         }
@@ -152,10 +190,16 @@ impl<'a> Simulation<'a> {
         });
 
         if just_recurse {
+            debug!("solver is not moving");
             if self.solve_dijkstra_from_node(visited).is_some() {
                 return Some(());
+            } else {
+                debug!("solver did not move and it failed to bottom out");
+                return ret;
             }
         }
+
+        debug!("solver fallthrough with just_recurse false");
         ret
     }
 
@@ -195,11 +239,18 @@ pub struct VisitedMap(HashMap<String, HashMap<u32, u32>>);
 impl VisitedMap {
     /// new returns a sparsely allocated map.
     #[allow(dead_code)]
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new<S: AsRef<str>>(neighbors: &[S]) -> Self {
+        Self(
+            neighbors
+                .iter()
+                .map(|s| s.as_ref().to_string())
+                .map(|n| (n, Default::default()))
+                .collect(),
+        )
     }
 
     /// new returns a densely allocated map with neighbors plugged in.
+    #[allow(dead_code)]
     pub fn new_dense<S: AsRef<str>>(neighbors: &[S], turns: u32) -> Self {
         Self(
             neighbors
@@ -254,12 +305,7 @@ impl VisitedMap {
         // is greater
         valves
             .iter()
-            .map(|valve| {
-                (
-                    valve.clone(),
-                    self.0.get(valve.as_str()).and_then(|t| t.get(turn)),
-                )
-            })
+            .map(|valve| (valve, self.0.get(valve.as_str()).and_then(|t| t.get(turn))))
             .filter_map(|(valve, last_best)| {
                 match last_best {
                     None => Some((valve, *score)), // never moved there before
@@ -268,7 +314,7 @@ impl VisitedMap {
                 }
             })
             .max_by_key(|t| t.1)
-            .map(|(v, _)| v.clone())
+            .map(|(v, _)| v.clone().clone())
     }
 }
 
@@ -298,9 +344,13 @@ impl<'a> fmt::Display for Player<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+    fn init() {
+        pretty_env_logger::init();
+    }
 
     #[test]
     fn test_solve_pt1_ex() {
+        init();
         let input = r#"Valve AA has flow rate=0; tunnels lead to valves DD, II, BB
 Valve BB has flow rate=13; tunnels lead to valves CC, AA
 Valve CC has flow rate=2; tunnels lead to valves DD, BB
