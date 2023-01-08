@@ -1,3 +1,9 @@
+/// This solution is messy. Took a long time to get here and I've not got
+/// the energy in me for a refactor. There's tons of extra clones which could be
+/// unwound, especially around the last mile changes to VisitedMap to track both
+/// player's positions with a joined key.
+///
+/// Nonetheless: it works and solves the solution pretty fast.
 mod graph;
 
 use std::collections::{HashMap, HashSet};
@@ -38,6 +44,23 @@ pub enum Action {
     },
 }
 
+impl fmt::Display for Action {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Action::*;
+        match self {
+            Move { player, from, to } => {
+                write!(f, "Player {} moved from {} to {}", player + 1, from, to)
+            }
+            Stay { player, at } => {
+                write!(f, "Player {} stayed at {}", player + 1, at)
+            }
+            Open { player, valve } => {
+                write!(f, "Player {} opened valve {}", player + 1, valve)
+            }
+        }
+    }
+}
+
 impl Action {
     pub fn mv(player: usize, from: String, to: String) -> Self {
         Self::Move { player, from, to }
@@ -74,7 +97,8 @@ pub struct Simulation<'a> {
     actions: Vec<Action>,
 }
 
-/// dumb brute force solver with obvious enhancements
+/// solver which consumes itself on call. cloned recursively to avoid
+/// annoying Arc semantics.
 impl<'a> Simulation<'a> {
     pub fn new(graph: &'a Graph, max_players: u32) -> Self {
         Self {
@@ -108,14 +132,12 @@ impl<'a> Simulation<'a> {
             }
         }
 
-        self.solve_dijkstra_from_node(&mut visited);
-        visited
-            .0
-            .values()
-            .flat_map(|v| v.values())
-            .max()
-            .cloned()
-            .unwrap_or_default()
+        let result = self.clone().solve_dijkstra_from_node(&mut visited).unwrap();
+        for t in &result.actions {
+            trace!("{}", t);
+        }
+
+        result.cum_flow
     }
 
     /// Runs dijkstra recursively. There are three outcomes for each player:
@@ -126,28 +148,42 @@ impl<'a> Simulation<'a> {
     ///  After making one decision, the function recurses to finish the remaining moves.
     ///  If all players are done, a tick occurs and it repeats.
     ///  self is assumed cloned and is not cleaned up after.
-    pub fn solve_dijkstra_from_node(&mut self, visited: &mut VisitedMap) -> Option<()> {
+    ///
+    /// If there are more than one players, visited are their positions joined together.
+    pub fn solve_dijkstra_from_node(mut self, visited: &mut VisitedMap) -> Option<Self> {
+        trace!(
+            "recurse: actions: {}\tturns: {}\tplayers not done: {:?}",
+            self.actions.len(),
+            self.turn,
+            self.players
+                .iter()
+                .filter(|p| !p.done)
+                .map(|p| format!("{}", p))
+                .collect::<Vec<_>>()
+        );
         if self.players.iter().all(|p| p.done) {
+            trace!("turn {}: done, ticking", self.turn);
             // tick: we are starting a round and actions happen first
             let done = self.tick();
 
             let mut change = false;
-            // update visited
-            for player in &self.players {
-                if visited
-                    .get_or_upsert_if_better(&player.pos.name, &self.turn, &self.cum_flow)
-                    .is_some()
-                {
-                    debug!(
-                        "{}: has new best for {} on {} on turn {}",
-                        player, player.pos.name, self.cum_flow, self.turn
-                    );
-                    change = true;
-                }
+
+            if visited
+                .get_or_upsert_if_better(&self.key(), &self.turn, &self.cum_flow)
+                .is_some()
+            {
+                debug!(
+                    "{}: new best with flow={} on turn {}",
+                    self.key(),
+                    self.cum_flow,
+                    self.turn
+                );
+                change = true;
             }
 
             if done {
-                return Some(());
+                debug!("done!");
+                return Some(self);
             }
             if !change {
                 debug!("discarding path");
@@ -156,12 +192,13 @@ impl<'a> Simulation<'a> {
         }
 
         if self.turn == self.max_turns {
-            return Some(());
+            trace!("max turns hit");
+            return Some(self);
         }
 
-        let mut ret = None; // non-none if found at least one answer
+        let mut results = vec![];
 
-        // We try to open valves first, since that's likely the most effectual in depth-first
+        // We try to open valves first, since that's likely the most impactful in depth-first
         // pathfinding: we move the players.
         //
         // We evaluate the possibility of opening valves and not by recursing after each
@@ -176,8 +213,8 @@ impl<'a> Simulation<'a> {
 
             debug!("{}: open valve {} w/ rate {}", player, pos.name, pos.rate);
             c.open(i);
-            if c.solve_dijkstra_from_node(visited).is_some() {
-                ret = Some(());
+            if let Some(res) = c.solve_dijkstra_from_node(visited) {
+                results.push(res);
             }
         }
 
@@ -185,84 +222,113 @@ impl<'a> Simulation<'a> {
             .players
             .iter()
             .enumerate()
-            .filter(|(_, p)| !p.done)
-            .map(|(i, p)| (i, p.pos))
-            .collect::<Vec<_>>();
-        let mut change = self.turn < self.max_turns && players.len() != 0;
-        let next_flow = self.cum_flow + self.cum_rate;
-        while change {
-            change = false;
-            let mut c = self.clone();
-
-            for (i, pos) in &players {
-                let neighbor_valves = pos.neighbors().iter().map(|v| &v.name).collect();
-                if let Some(next) =
-                    visited.get_best_next_node(&neighbor_valves, &(self.turn + 1), &next_flow)
-                {
-                    change = true;
-                    debug!("change loop found: player {}: {} -> {}", i, pos.name, next);
-                    c.mv(*i, &next);
+            .filter_map(|(i, p)| {
+                if !p.done {
+                    Some((i, &p.name, p.pos))
                 } else {
-                    // otherwise: we don't move, no change
-                    debug!(
-                        "change loop discarded: player {}: {} -> {:?}",
-                        i, pos.name, neighbor_valves
-                    );
+                    None
                 }
-            }
+            })
+            .collect::<Vec<_>>();
+        let next_flow = self.cum_flow + self.cum_rate;
 
-            if change && c.solve_dijkstra_from_node(visited).is_some() {
+        for (i, name, pos) in &players {
+            let neighbor_keys: Vec<String> = if self.max_players == 1 {
+                pos.neighbors().iter().map(|v| v.name.clone()).collect()
+            } else {
+                if *i == 0 {
+                    pos.neighbors()
+                        .iter()
+                        .map(|v| v.name.clone() + &self.players.get(1).unwrap().pos.name)
+                        .collect()
+                } else {
+                    pos.neighbors()
+                        .iter()
+                        .map(|v| self.players.get(1).unwrap().pos.name.clone() + &v.name)
+                        .collect()
+                }
+            };
+
+            let neighbor_keys = neighbor_keys.iter().collect();
+
+            let next_nodes =
+                visited.get_next_best_nodes(&neighbor_keys, &(self.turn + 1), &next_flow);
+            let next_nodes: Vec<String> = next_nodes
+                .into_iter()
+                .map(|n| {
+                    if self.max_players != 1 {
+                        if *i == 0 {
+                            n[..2].to_string()
+                        } else {
+                            n[2..].to_string()
+                        }
+                    } else {
+                        n
+                    }
+                })
+                .collect();
+
+            // wallk all possible next nodes and call ourselves again to do the same.
+            for next in next_nodes {
+                let mut c = self.clone();
+
                 debug!(
-                    "solver returned:\n{}\nturn:{}\nflow: {}\nrate: {}\nplayers: {}",
-                    c.graph,
-                    c.turn,
-                    c.cum_flow,
-                    c.cum_rate,
-                    c.players.iter().fold("".to_string(), |acc, p| format!(
-                        "{}\n  {} @ valve {}",
-                        acc, p, p.pos.name
-                    ))
+                    "change loop for turn {}: player {}: {} -> {}",
+                    self.turn, name, pos.name, next
                 );
-                ret = Some(());
+                c.mv(*i, &next);
+
+                if let Some(res) = c.solve_dijkstra_from_node(visited) {
+                    results.push(res);
+                }
             }
         }
 
         // So finally, try just not moving anywhere (after turning dials) if
         // a player isn't done and hasn't moved.
-        let mut can_wait = self.turn + 1 < self.max_turns;
         let players = self
             .players
             .iter()
             .enumerate()
-            .filter_map(|(i, p)| if p.done { Some((i, p.pos)) } else { None })
+            .filter_map(|(i, p)| if !p.done { Some((i, p.pos)) } else { None })
             .collect::<Vec<_>>();
 
-        if players.len() != 0 {
-            let mut c = self.clone();
-
-            for (i, pos) in players {
-                let player_pos = vec![&pos.name];
-                can_wait = can_wait
-                    || visited
-                        .get_best_next_node(&player_pos, &(self.turn + 1), &next_flow)
-                        .is_some();
-                c.stay(i)
-            }
-
-            if can_wait {
-                debug!("solver can just wait for at least one player");
-                if self.solve_dijkstra_from_node(visited).is_some() {
-                    return Some(());
+        if players.len() != 0 && self.turn <= self.max_turns {
+            for (i, pos) in &players {
+                let player_pos = if self.max_players == 1 {
+                    vec![pos.name.clone()]
+                } else {
+                    if *i == 0 {
+                        vec![pos.name.clone() + &self.players.get(1).unwrap().pos.name]
+                    } else {
+                        vec![self.players.get(1).unwrap().pos.name.clone() + &pos.name]
+                    }
+                };
+                let player_pos = player_pos.iter().collect();
+                if !visited
+                    .get_best_next_node(&player_pos, &(self.turn + 1), &next_flow)
+                    .is_some()
+                {
+                    trace!("player {} cannot stay @ {}", i + 1, pos.name);
+                    continue;
                 }
-                return ret;
-            }
 
-            debug!(
-                "solver cannot just wait and cannot move on turn {}, returning ret={:?}",
-                self.turn, ret
-            );
+                let mut c = self.clone();
+                c.stay(*i);
+
+                if let Some(res) = c.solve_dijkstra_from_node(visited) {
+                    results.push(res);
+                }
+            }
         }
-        ret
+
+        results.into_iter().max_by_key(|r| r.cum_flow)
+    }
+
+    fn key(&self) -> String {
+        self.players
+            .iter()
+            .fold("".to_string(), |acc, p| acc + &p.pos.name)
     }
 
     /// ticks once:
@@ -282,23 +348,32 @@ impl<'a> Simulation<'a> {
 
     pub fn mv(&mut self, player: usize, to: &String) {
         let mut p = self.players.get_mut(player).unwrap();
-        self.actions
-            .push(Action::mv(player, p.pos.name.clone(), to.clone()));
+        let action = Action::mv(player, p.pos.name.clone(), to.clone());
 
-        p.pos = self.graph.get(to).unwrap();
+        trace!("{}", &action);
+        self.actions.push(action);
+        p.pos = self
+            .graph
+            .get(to)
+            .expect(&format!("failed to retrieve destination: {}", to));
         p.done = true;
     }
 
     pub fn stay(&mut self, player: usize) {
         let mut p = self.players.get_mut(player).unwrap();
-        self.actions.push(Action::stay(player, p.pos.name.clone()));
+        let action = Action::stay(player, p.pos.name.clone());
 
+        trace!("{}", &action);
+        self.actions.push(action);
         p.done = true;
     }
 
     pub fn open(&mut self, player: usize) {
         let mut p = self.players.get_mut(player).unwrap();
-        self.actions.push(Action::open(player, p.pos.name.clone()));
+        let action = Action::open(player, p.pos.name.clone());
+
+        trace!("{}", &action);
+        self.actions.push(action);
 
         self.cum_rate += p.pos.rate;
         self.open_valves.insert(&p.pos.name);
@@ -380,14 +455,12 @@ impl VisitedMap {
         }
     }
 
-    /// Provides the next best node from the provided list of nodes on a given turn
-    /// evaluated against a score. Among equal options, the "first" wins.
-    pub fn get_best_next_node(
+    fn get_next_best_nodes_inner(
         &mut self,
         valves: &Vec<&String>,
         turn: &u32,
         score: &u32,
-    ) -> Option<String> {
+    ) -> Vec<(String, u32)> {
         // turn valves into (name, score_delta) and filter only those where our score
         // is greater
         valves
@@ -400,8 +473,38 @@ impl VisitedMap {
                     Some(_) => None, // no moves where we are an improvement
                 }
             })
+            .map(|(n, score)| (n.clone().clone(), score))
+            .collect::<Vec<_>>()
+    }
+
+    pub fn get_next_best_nodes(
+        &mut self,
+        valves: &Vec<&String>,
+        turn: &u32,
+        score: &u32,
+    ) -> Vec<String> {
+        // turn valves into (name, score_delta) and filter only those where our score
+        // is greater
+        let mut valves = self.get_next_best_nodes_inner(valves, turn, score);
+
+        valves.sort_by_key(|v| v.1);
+        valves.into_iter().map(|v| v.0).collect()
+    }
+
+    /// Provides the next best node from the provided list of nodes on a given turn
+    /// evaluated against a score. Among equal options, the "first" wins.
+    pub fn get_best_next_node(
+        &mut self,
+        valves: &Vec<&String>,
+        turn: &u32,
+        score: &u32,
+    ) -> Option<String> {
+        // turn valves into (name, score_delta) and filter only those where our score
+        // is greater
+        self.get_next_best_nodes_inner(valves, turn, score)
+            .into_iter()
             .max_by_key(|t| t.1)
-            .map(|(v, _)| v.clone().clone())
+            .map(|(v, _)| v)
     }
 }
 
@@ -438,15 +541,15 @@ mod test {
     #[test]
     fn test_solve_pt1_ex() {
         let input = r#"Valve AA has flow rate=0; tunnels lead to valves DD, II, BB
-Valve BB has flow rate=13; tunnels lead to valves CC, AA
-Valve CC has flow rate=2; tunnels lead to valves DD, BB
-Valve DD has flow rate=20; tunnels lead to valves CC, AA, EE
-Valve EE has flow rate=3; tunnels lead to valves FF, DD
-Valve FF has flow rate=0; tunnels lead to valves EE, GG
-Valve GG has flow rate=0; tunnels lead to valves FF, HH
-Valve HH has flow rate=22; tunnel leads to valve GG
-Valve II has flow rate=0; tunnels lead to valves AA, JJ
-Valve JJ has flow rate=21; tunnel leads to valve II"#;
+    Valve BB has flow rate=13; tunnels lead to valves CC, AA
+    Valve CC has flow rate=2; tunnels lead to valves DD, BB
+    Valve DD has flow rate=20; tunnels lead to valves CC, AA, EE
+    Valve EE has flow rate=3; tunnels lead to valves FF, DD
+    Valve FF has flow rate=0; tunnels lead to valves EE, GG
+    Valve GG has flow rate=0; tunnels lead to valves FF, HH
+    Valve HH has flow rate=22; tunnel leads to valve GG
+    Valve II has flow rate=0; tunnels lead to valves AA, JJ
+    Valve JJ has flow rate=21; tunnel leads to valve II"#;
 
         let graph: Graph = input.parse().unwrap();
         let mut solver = Simulation::new(&graph, 1);
