@@ -18,7 +18,7 @@ where
     // takes line-by-line representation of wall lines
     // and derives a Map
     fn from_str(s: &str) -> Result<Self> {
-        let mut parts = s.splitn(2, ",").map(|p| p.trim().parse());
+        let mut parts = s.splitn(2, ',').map(|p| p.trim().parse());
 
         Ok(Self {
             x: parts

@@ -21,7 +21,7 @@ impl FromStr for Tile {
         match s.chars().collect::<Vec<_>>()[..] {
             ['S'] => Ok(Start),
             ['E'] => Ok(End),
-            [c @ 'a'..='z'] => Ok(Walkable(c as u8 - 'a' as u8)),
+            [c @ 'a'..='z'] => Ok(Walkable(c as u8 - b'a')),
             _ => bail!("invalid input to parse for Tile: {:?}", s),
         }
     }
@@ -32,7 +32,7 @@ impl fmt::Display for Tile {
         match self {
             Start => write!(f, "S"),
             End => write!(f, "E"),
-            Walkable(c) => write!(f, "{}", (*c + 'a' as u8) as char),
+            Walkable(c) => write!(f, "{}", (*c + b'a') as char),
         }
     }
 }
@@ -65,11 +65,11 @@ impl FromStr for Map<Tile> {
 
     fn from_str(s: &str) -> Result<Self> {
         let m = BaseMap::from_data(
-            s.split("\n")
-                .filter(|l| *l != "")
+            s.split('\n')
+                .filter(|l| !l.is_empty())
                 .map(|row| {
                     row.split("")
-                        .filter(|c| *c != "")
+                        .filter(|c| !c.is_empty())
                         .map(FromStr::from_str)
                         // .map(|c| c.map_err(|e| anyhow!("error '{}' on parsing row: {}", e, row)))
                         .collect::<Result<Vec<_>>>()
@@ -91,7 +91,7 @@ impl<T: fmt::Display> fmt::Display for Map<T> {
             for cell in row {
                 write!(f, "{}", cell)?;
             }
-            write!(f, "\n")?;
+            writeln!(f)?;
         }
 
         Ok(())

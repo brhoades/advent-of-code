@@ -52,7 +52,7 @@ pub fn run(input: String) -> Result<()> {
             println!(
                 "...{}_{}_{}...",
                 str_with_context(input, pos - WINDOW_SIZE * 2..pos),
-                input[pos - WINDOW_SIZE..pos].to_string(),
+                &input[pos - WINDOW_SIZE..pos],
                 str_with_context(input, pos..pos + WINDOW_SIZE * 2)
             );
         }

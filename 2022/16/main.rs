@@ -235,18 +235,16 @@ impl<'a> Simulation<'a> {
         for (i, name, pos) in &players {
             let neighbor_keys: Vec<String> = if self.max_players == 1 {
                 pos.neighbors().iter().map(|v| v.name.clone()).collect()
+            } else if *i == 0 {
+                pos.neighbors()
+                    .iter()
+                    .map(|v| v.name.clone() + &self.players.get(1).unwrap().pos.name)
+                    .collect()
             } else {
-                if *i == 0 {
-                    pos.neighbors()
-                        .iter()
-                        .map(|v| v.name.clone() + &self.players.get(1).unwrap().pos.name)
-                        .collect()
-                } else {
-                    pos.neighbors()
-                        .iter()
-                        .map(|v| self.players.get(1).unwrap().pos.name.clone() + &v.name)
-                        .collect()
-                }
+                pos.neighbors()
+                    .iter()
+                    .map(|v| self.players.get(1).unwrap().pos.name.clone() + &v.name)
+                    .collect()
             };
 
             let neighbor_keys = neighbor_keys.iter().collect();
@@ -293,21 +291,18 @@ impl<'a> Simulation<'a> {
             .filter_map(|(i, p)| if !p.done { Some((i, p.pos)) } else { None })
             .collect::<Vec<_>>();
 
-        if players.len() != 0 && self.turn <= self.max_turns {
+        if !players.is_empty() && self.turn <= self.max_turns {
             for (i, pos) in &players {
                 let player_pos = if self.max_players == 1 {
                     vec![pos.name.clone()]
+                } else if *i == 0 {
+                    vec![pos.name.clone() + &self.players.get(1).unwrap().pos.name]
                 } else {
-                    if *i == 0 {
-                        vec![pos.name.clone() + &self.players.get(1).unwrap().pos.name]
-                    } else {
-                        vec![self.players.get(1).unwrap().pos.name.clone() + &pos.name]
-                    }
+                    vec![self.players.get(1).unwrap().pos.name.clone() + &pos.name]
                 };
                 let player_pos = player_pos.iter().collect();
-                if !visited
-                    .get_best_next_node(&player_pos, &(self.turn + 1), &next_flow)
-                    .is_some()
+                if visited
+                    .get_best_next_node(&player_pos, &(self.turn + 1), &next_flow).is_none()
                 {
                     trace!("player {} cannot stay @ {}", i + 1, pos.name);
                     continue;
@@ -347,7 +342,7 @@ impl<'a> Simulation<'a> {
     }
 
     pub fn mv(&mut self, player: usize, to: &String) {
-        let mut p = self.players.get_mut(player).unwrap();
+        let p = self.players.get_mut(player).unwrap();
         let action = Action::mv(player, p.pos.name.clone(), to.clone());
 
         trace!("{}", &action);
@@ -355,12 +350,12 @@ impl<'a> Simulation<'a> {
         p.pos = self
             .graph
             .get(to)
-            .expect(&format!("failed to retrieve destination: {}", to));
+            .unwrap_or_else(|| panic!("failed to retrieve destination: {}", to));
         p.done = true;
     }
 
     pub fn stay(&mut self, player: usize) {
-        let mut p = self.players.get_mut(player).unwrap();
+        let p = self.players.get_mut(player).unwrap();
         let action = Action::stay(player, p.pos.name.clone());
 
         trace!("{}", &action);
@@ -369,7 +364,7 @@ impl<'a> Simulation<'a> {
     }
 
     pub fn open(&mut self, player: usize) {
-        let mut p = self.players.get_mut(player).unwrap();
+        let p = self.players.get_mut(player).unwrap();
         let action = Action::open(player, p.pos.name.clone());
 
         trace!("{}", &action);
@@ -418,7 +413,7 @@ impl VisitedMap {
             neighbors
                 .iter()
                 .map(|s| s.as_ref().to_string())
-                .map(|n| (n, (0..turns).map(|t| (t as u32, 0)).collect()))
+                .map(|n| (n, (0..turns).map(|t| (t, 0)).collect()))
                 .collect(),
         )
     }
@@ -434,7 +429,7 @@ impl VisitedMap {
         let mut ret = None;
         let turns = self.0.entry(neighbor.to_string()).or_insert_with(|| {
             ret = Some(*score);
-            [(*turn, score.clone())].into_iter().collect()
+            [(*turn, *score)].into_iter().collect()
         });
 
         let v = turns.entry(*turn).or_insert_with(|| {
@@ -457,6 +452,7 @@ impl VisitedMap {
 
     fn get_next_best_nodes_inner(
         &mut self,
+        #[allow(ptr_arg)]
         valves: &Vec<&String>,
         turn: &u32,
         score: &u32,
@@ -468,12 +464,12 @@ impl VisitedMap {
             .map(|valve| (valve, self.0.get(valve.as_str()).and_then(|t| t.get(turn))))
             .filter_map(|(valve, last_best)| {
                 match last_best {
-                    None => Some((valve, *score)), // never moved there before
+                    None => Some((*valve, *score)), // never moved there before
                     Some(b) if score > b => Some((valve, score - b)),
                     Some(_) => None, // no moves where we are an improvement
                 }
             })
-            .map(|(n, score)| (n.clone().clone(), score))
+            .map(|(n, score)| (n.clone(), score))
             .collect::<Vec<_>>()
     }
 

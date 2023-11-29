@@ -11,7 +11,7 @@ pub fn run(input: String) -> Result<()> {
 
     // println!("{}", m);
     for o in &orders {
-        m.execute(o.clone());
+        m.execute(*o);
         // println!("{}", m);
     }
 
@@ -152,7 +152,7 @@ impl std::fmt::Display for Map {
             for c in row {
                 write!(f, "{}", c)?;
             }
-            write!(f, "{}", "\n")?;
+            writeln!(f)?;
         }
 
         std::fmt::Result::Ok(())
@@ -186,9 +186,9 @@ impl FromStr for Order {
 /// and parses them out into the enum above.
 fn parse_orders(input: &str) -> Result<Vec<Order>> {
     input
-        .split("\n")
-        .filter(|l| *l != "")
-        .map(|l| match l.split(" ").collect::<Vec<_>>().as_slice() {
+        .split('\n')
+        .filter(|l| !l.is_empty())
+        .map(|l| match l.split(' ').collect::<Vec<_>>().as_slice() {
             &[dir, count] => Ok((dir.parse::<Order>()?, count.parse::<u8>()?)),
             _ => bail!("unknown line format: {}", l),
         })
@@ -196,7 +196,7 @@ fn parse_orders(input: &str) -> Result<Vec<Order>> {
         .map(|orders| {
             orders
                 .into_iter()
-                .flat_map(|(o, cnt)| repeat(o.clone()).take(cnt as usize))
+                .flat_map(|(o, cnt)| repeat(o).take(cnt as usize))
                 .collect()
         })
 }

@@ -85,7 +85,7 @@ fn find_shortest_path_brute_inner(
         .filter(|(x, y)| match m.get(*x, *y).unwrap() {
             Start => true, // S == a == 0 cost
             Walkable(c) => (current_cost as i16 - *c as i16) >= -1,
-            End => (current_cost as i16 - ('z' as u8 - 'a' as u8) as i16) >= -1,
+            End => (current_cost as i16 - (b'z' - b'a') as i16) >= -1,
         })
         .collect::<Vec<_>>();
 
@@ -169,7 +169,7 @@ fn find_shortest_path_dijkstra_inner(
         .filter(|(x, y)| match m.get(*x, *y).unwrap() {
             Start => true, // S == a == 0 cost
             Walkable(c) => (current_cost as i16 - *c as i16) >= -1,
-            End => (current_cost as i16 - ('z' as u8 - 'a' as u8) as i16) >= -1,
+            End => (current_cost as i16 - (b'z' - b'a') as i16) >= -1,
         })
         .collect::<Vec<_>>();
 

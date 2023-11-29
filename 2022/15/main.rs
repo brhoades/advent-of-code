@@ -70,7 +70,7 @@ impl FromStr for Sensor {
     /// takes line-by-line representation of wall lines
     /// and derives a Map
     fn from_str(s: &str) -> Result<Self> {
-        let parts = s.split(" ").collect::<Vec<_>>();
+        let parts = s.split(' ').collect::<Vec<_>>();
         let cleanup = |s: &str| s.trim_matches(|c| ",:x=y".find(c).is_some()).to_string();
 
         let (sx, sy, bx, by): (i64, i64, i64, i64) =
@@ -110,11 +110,11 @@ impl Map {
         let nodes: HashSet<(i64, i64)> = self
             .sensors
             .iter()
-            .flat_map(|s| vec![(s.x, s.y), s.beacon.clone()])
+            .flat_map(|s| vec![(s.x, s.y), s.beacon])
             .collect();
 
         for x in self.left.0..self.dimensions.0 {
-            if let Some(_) = nodes.get(&(x, y)) {
+            if nodes.get(&(x, y)).is_some() {
                 continue;
             }
 
@@ -138,14 +138,14 @@ impl Map {
         let mut seen = HashSet::with_capacity(
             self.sensors
                 .iter()
-                .fold(0 as usize, |acc, s| acc + 4 * (s.range + 1) as usize),
+                .fold(0_usize, |acc, s| acc + 4 * (s.range + 1) as usize),
         );
         for (x, y) in pts {
             if seen.contains(&(x, y)) {
                 continue;
             }
 
-            seen.insert((x, y).clone());
+            seen.insert((x, y));
 
             if !self.sensors.iter().any(|s| s.contains(x, y)) {
                 return Some((x, y));
@@ -191,7 +191,7 @@ impl fmt::Display for Map {
                         }
                     }
 
-                    write!(f, "\n")?;
+                    writeln!(f)?;
                 }
             }
 
@@ -222,7 +222,7 @@ impl fmt::Display for Map {
                     write!(f, ".")?;
                 }
             }
-            write!(f, "\n")?;
+            writeln!(f)?;
         }
 
         Ok(())
@@ -313,7 +313,7 @@ impl Iterator for PerimeterIterator {
         let y = self.cur_step.1 * self.cur_i + srcy;
         if self.cur_i != 0 && (x == self.source.0 || y == self.source.1) {
             // we're on a beacon vertex: use next step
-            if self.rem_steps.len() == 0 {
+            if self.rem_steps.is_empty() {
                 return None;
             }
 
@@ -341,7 +341,7 @@ mod test {
         for x in 0..=10 {
             for y in 0..=10 {
                 assert_eq!(
-                    (x - 5 as i64).abs() + (y - 5 as i64).abs() <= 4,
+                    (x - 5_i64).abs() + (y - 5_i64).abs() <= 4,
                     m.sensors.first().unwrap().contains(x, y),
                 );
             }

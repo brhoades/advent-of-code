@@ -35,7 +35,7 @@ pub fn run(input: String) -> Result<()> {
 
     println!(
         "Monkey business level: {}",
-        inspections.iter().rev().take(2).fold(1, |acc, i| acc * i),
+        inspections.iter().rev().take(2).product::<usize>(),
     );
 
     println!("=================\nPart 2\n=================");
@@ -43,7 +43,7 @@ pub fn run(input: String) -> Result<()> {
     let worry_modulus = monkies
         .iter()
         .map(|m| m.test_divisor)
-        .fold(1, |acc, d| acc * d);
+        .product::<u32>();
     let pb = ProgressBar::new(10000);
     pb.set_style(
         ProgressStyle::with_template(
@@ -63,7 +63,7 @@ pub fn run(input: String) -> Result<()> {
     inspections.sort();
     println!(
         "Monkey business level: {}",
-        inspections.iter().rev().take(2).fold(1, |acc, i| acc * i),
+        inspections.iter().rev().take(2).product::<usize>(),
     );
 
     Ok(())
@@ -90,9 +90,9 @@ fn monkey_a_round(
         for item in items {
             let mut item = op.process(item);
             if let Some(div) = worry_divisor {
-                item = item / div as u128
+                item /= div as u128
             } else if let Some(modulus) = worry_modulus {
-                item = item % modulus as u128
+                item %= modulus as u128
             }
             let dest = if item % test as u128 == 0 {
                 dec.0
@@ -164,7 +164,7 @@ struct Monkey {
 fn parse_monkey(index: usize, monkey: &str) -> Result<Monkey> {
     let lines = monkey
         .lines()
-        .map(|l| l.split(" ").filter(|w| *w != "").collect::<Vec<_>>())
+        .map(|l| l.split(' ').filter(|w| !w.is_empty()).collect::<Vec<_>>())
         .skip(1)
         .collect::<Vec<_>>();
 
@@ -180,7 +180,7 @@ fn parse_monkey(index: usize, monkey: &str) -> Result<Monkey> {
     let items = match lines.next().unwrap().as_slice() {
         ["Starting", "items:", rem @ ..] => {
             let rem = rem.join("");
-            rem.split(",")
+            rem.split(',')
                 .map(|i| i.parse::<u128>())
                 .collect::<std::result::Result<Vec<_>, _>>()
         }
@@ -218,7 +218,7 @@ fn parse_monkey(index: usize, monkey: &str) -> Result<Monkey> {
     };
 
     let mut test_decision = vec![];
-    while let Some(l) = lines.next() {
+    for l in lines {
         match l.as_slice() {
             ["If", "true:", "throw", "to", "monkey", num] => test_decision.push(num.parse()?),
             ["If", "false:", "throw", "to", "monkey", num] => test_decision.push(num.parse()?),
@@ -243,7 +243,7 @@ fn parse_monkey(index: usize, monkey: &str) -> Result<Monkey> {
 fn parse_monkies(input: &String) -> Result<Vec<Monkey>> {
     input
         .split("\n\n")
-        .filter(|l| *l != "")
+        .filter(|l| !l.is_empty())
         .enumerate()
         .map(|(i, m)| parse_monkey(i, m).map_err(|e| anyhow!("on monkey {}: {}", i, e)))
         .collect::<Result<Vec<_>>>()
@@ -257,7 +257,7 @@ impl std::fmt::Display for Monkey {
             self.index,
             self.items
                 .iter()
-                .fold("".to_string(), |acc, s| if acc == "" {
+                .fold("".to_string(), |acc, s| if acc.is_empty() {
                     s.to_string()
                 } else {
                     acc + ", " + &s.to_string()
@@ -340,7 +340,7 @@ Monkey 3:
     let worry_modulus = monkies
         .iter()
         .map(|m| m.test_divisor)
-        .fold(1, |acc, d| acc * d);
+        .product::<u32>();
 
     for _ in 0..10000 {
         monkey_a_round(&mut monkies, None, Some(worry_modulus));

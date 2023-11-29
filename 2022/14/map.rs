@@ -71,7 +71,7 @@ impl Map {
             }
         }
 
-        minc.and_then(|min| maxc.and_then(|max| Some((min, max))))
+        minc.and_then(|min| maxc.map(|max| (min, max)))
     }
 
 
@@ -105,13 +105,13 @@ impl fmt::Display for Map {
         let (lower, upper) = b.unwrap();
 
         for (y, row) in self.data.iter_rows().enumerate() {
-            if y > upper.y as usize || y < lower.y as usize {
+            if y > upper.y || y < lower.y {
                 continue
             }
             for col in &row[lower.x..=upper.x] {
                 write!(f, "{}", col)?;
             }
-            write!(f, "\n")?;
+            writeln!(f)?;
         }
 
         Ok(())
@@ -203,7 +203,7 @@ mod test {
         for x in 2..=4 {
             for y in 2..=5 {
                 let c = m.get(x, y);
-                assert!(!c.is_err(), "{:?}", c);
+                assert!(c.is_ok(), "{:?}", c);
                 let c = c.unwrap();
 
                 if wall_coords.contains(&(x, y)) {

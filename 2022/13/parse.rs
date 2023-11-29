@@ -3,7 +3,7 @@ use anyhow::{anyhow, bail, Result};
 use super::{Value, Value::*};
 
 pub fn line(input: &str) -> Result<Value> {
-    value(&input.split("").filter(|c| *c != "").collect::<Vec<_>>()).map(|(_, v)| v)
+    value(&input.split("").filter(|c| !c.is_empty()).collect::<Vec<_>>()).map(|(_, v)| v)
 }
 
 // str as a value, consuming input until a ] is
@@ -17,7 +17,7 @@ pub fn value(input: &[&str]) -> Result<(usize, Value)> {
     while i < input.len() {
         let c = input[i].chars().next().unwrap();
 
-        if acc != "" && (c < '0' || c > '9') {
+        if !acc.is_empty() && !c.is_ascii_digit() {
             let next = acc
                 .parse()
                 .map_err(|e| anyhow!("'{}' is not a number, [ nor ]. invalid input: {}", c, e))?;
@@ -81,7 +81,7 @@ fn test_parse_simple_cases() {
     for (case, expected) in cases {
         assert_eq!(
             expected,
-            line(&case).expect(&format!("failed to parse: {}", case))
+            line(case).unwrap_or_else(|_| panic!("failed to parse: {}", case))
         );
     }
 }

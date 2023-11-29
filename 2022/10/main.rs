@@ -25,7 +25,7 @@ pub fn run(input: String) -> Result<()> {
                 print!(".");
             }
         }
-        println!("");
+        println!();
     }
 
     Ok(())
@@ -52,7 +52,7 @@ impl FromStr for Op {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        match s.split(" ").collect::<Vec<_>>().as_slice() {
+        match s.split(' ').collect::<Vec<_>>().as_slice() {
             ["addx", num] => Ok(Addx(num.parse()?)),
             ["noop"] => Ok(Noop),
             s => bail!("unknown op line: {:?}", s),
@@ -63,8 +63,8 @@ impl FromStr for Op {
 fn parse_ops<S: std::borrow::Borrow<str>>(input: S) -> Result<Vec<Op>> {
     input
         .borrow()
-        .split("\n")
-        .filter(|x| *x != "")
+        .split('\n')
+        .filter(|x| !x.is_empty())
         .map(FromStr::from_str)
         .collect()
 }
@@ -111,7 +111,7 @@ impl Computer {
     fn tick(&mut self) {
         // pos of center of current pixel being drawn
         let x = self.c % 40;
-        if (x as i32 - self.x as i32).abs() <= 1 {
+        if (x as i32 - self.x).abs() <= 1 {
             let row = self.c / 40;
             if row >= self.display.len() {
                 self.display.resize(row + 1, [false; 40]);
@@ -136,7 +136,7 @@ fn should_sample(c: &usize) -> bool {
 
 #[test]
 fn test_example_1() {
-    let input = r#"addx 15;addx -11;addx 6;addx -3;addx 5;addx -1;addx -8;addx 13;addx 4;noop;addx -1;addx 5;addx -1;addx 5;addx -1;addx 5;addx -1;addx 5;addx -1;addx -35;addx 1;addx 24;addx -19;addx 1;addx 16;addx -11;noop;noop;addx 21;addx -15;noop;noop;addx -3;addx 9;addx 1;addx -3;addx 8;addx 1;addx 5;noop;noop;noop;noop;noop;addx -36;noop;addx 1;addx 7;noop;noop;noop;addx 2;addx 6;noop;noop;noop;noop;noop;addx 1;noop;noop;addx 7;addx 1;noop;addx -13;addx 13;addx 7;noop;addx 1;addx -33;noop;noop;noop;addx 2;noop;noop;noop;addx 8;noop;addx -1;addx 2;addx 1;noop;addx 17;addx -9;addx 1;addx 1;addx -3;addx 11;noop;noop;addx 1;noop;addx 1;noop;noop;addx -13;addx -19;addx 1;addx 3;addx 26;addx -30;addx 12;addx -1;addx 3;addx 1;noop;noop;noop;addx -9;addx 18;addx 1;addx 2;noop;noop;addx 9;noop;noop;noop;addx -1;addx 2;addx -37;addx 1;addx 3;noop;addx 15;addx -21;addx 22;addx -6;addx 1;noop;addx 2;addx 1;noop;addx -10;noop;noop;addx 20;addx 1;addx 2;addx 2;addx -6;addx -11;noop;noop;noop"#.split(";").fold("".to_string(), |acc, l| acc.to_string() + "\n" + l);
+    let input = r#"addx 15;addx -11;addx 6;addx -3;addx 5;addx -1;addx -8;addx 13;addx 4;noop;addx -1;addx 5;addx -1;addx 5;addx -1;addx 5;addx -1;addx 5;addx -1;addx -35;addx 1;addx 24;addx -19;addx 1;addx 16;addx -11;noop;noop;addx 21;addx -15;noop;noop;addx -3;addx 9;addx 1;addx -3;addx 8;addx 1;addx 5;noop;noop;noop;noop;noop;addx -36;noop;addx 1;addx 7;noop;noop;noop;addx 2;addx 6;noop;noop;noop;noop;noop;addx 1;noop;noop;addx 7;addx 1;noop;addx -13;addx 13;addx 7;noop;addx 1;addx -33;noop;noop;noop;addx 2;noop;noop;noop;addx 8;noop;addx -1;addx 2;addx 1;noop;addx 17;addx -9;addx 1;addx 1;addx -3;addx 11;noop;noop;addx 1;noop;addx 1;noop;noop;addx -13;addx -19;addx 1;addx 3;addx 26;addx -30;addx 12;addx -1;addx 3;addx 1;noop;noop;noop;addx -9;addx 18;addx 1;addx 2;noop;noop;addx 9;noop;noop;noop;addx -1;addx 2;addx -37;addx 1;addx 3;noop;addx 15;addx -21;addx 22;addx -6;addx 1;noop;addx 2;addx 1;noop;addx -10;noop;noop;addx 20;addx 1;addx 2;addx 2;addx -6;addx -11;noop;noop;noop"#.split(';').fold("".to_string(), |acc, l| acc.to_string() + "\n" + l);
     let pts = vec![
         (20, 21),
         (60, 19),
@@ -170,6 +170,6 @@ fn test_example_1() {
         vec![20, 60, 100, 140, 180, 220]
             .into_iter()
             .map(|cycle| cycle as i32 * c.get_value_at_cycle(cycle).unwrap())
-            .fold(0, |acc, c| acc + c)
+            .sum::<i32>()
     );
 }

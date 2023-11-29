@@ -51,7 +51,7 @@ impl Filesystem {
         self.root.size()
     }
 
-    pub fn iter<'a>(&'a self) -> FilesystemIter<'a> {
+    pub fn iter(&self) -> FilesystemIter<'_> {
         FilesystemIter {
             rem: vec![self.root.iter()],
         }
@@ -63,13 +63,14 @@ impl Filesystem {
         Ok(pb
             .to_str()
             .ok_or_else(|| anyhow!("path is not valid utf8"))?
-            .split("/")
+            .split('/')
             .map(str::to_owned)
             .collect())
     }
 }
 
 #[derive(Debug, PartialEq)]
+#[derive(Default)]
 pub struct Node {
     path: PathBuf, // the full path to this node
     children: HashMap<String, Child>,
@@ -115,7 +116,7 @@ impl Node {
         match path {
             [] => None,
             [file] => self.children.get(file).and_then(|c| match c {
-                File(size) => Some(size.clone()),
+                File(size) => Some(*size),
                 _ => None,
             }),
             [folder, rem @ ..] => self.children.get(folder).and_then(|c| {
@@ -156,7 +157,7 @@ impl Node {
             .flat_map(|(seg, c)| {
                 let path = builtpath.clone() + "/" + seg;
                 match c {
-                    File(size) => vec![size.to_string() + &"\t".to_string() + &path],
+                    File(size) => vec![size.to_string() + "\t" + &path],
                     Folder(next) => next.nested_fmt(path),
                 }
             })
@@ -164,14 +165,7 @@ impl Node {
     }
 }
 
-impl Default for Node {
-    fn default() -> Self {
-        Self {
-            path: Default::default(),
-            children: Default::default(),
-        }
-    }
-}
+
 
 impl fmt::Display for Filesystem {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -207,9 +201,9 @@ impl<'a> Iterator for NodeIter<'a> {
     type Item = (PathBuf, &'a Child);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().and_then(|(seg, c)| match c {
-            File(_size) => Some((self.path.join(seg), c)),
-            Folder(next) => Some((next.path.clone(), c)),
+        self.iter.next().map(|(seg, c)| match c {
+            File(_size) => (self.path.join(seg), c),
+            Folder(next) => (next.path.clone(), c),
         })
     }
 }
@@ -262,9 +256,9 @@ fn test_iter_fs() {
     let mut it = fs.iter();
     // path => size | children #
     let mut seen: HashMap<String, usize> = HashMap::default();
-    while let Some((p, n)) = it.next() {
+    for (p, n) in it {
         match n {
-            File(size) => seen.insert(p.display().to_string(), size.clone()),
+            File(size) => seen.insert(p.display().to_string(), *size),
             Folder(n) => seen.insert(p.display().to_string(), n.len()),
         };
     }

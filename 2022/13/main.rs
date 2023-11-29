@@ -76,8 +76,8 @@ fn test_equality_simple_cases() {
         assert_eq!(
             expected,
             equality::list_order_correct(
-                &parse::line(&l).expect(&format!("failed to parse left case: {}", l)),
-                &parse::line(&r).expect(&format!("failed to parse left case: {}", l))
+                &parse::line(l).unwrap_or_else(|_| panic!("failed to parse left case: {}", l)),
+                &parse::line(r).unwrap_or_else(|_| panic!("failed to parse left case: {}", l))
             ),
             "case: '{}' == '{}'",
             l,
@@ -89,8 +89,8 @@ fn test_equality_simple_cases() {
 fn parse_input(input: &str) -> Result<Vec<Value>> {
     input
         .split("\n\n")
-        .filter(|l| *l != "")
-        .flat_map(|l| l.split("\n"))
+        .filter(|l| !l.is_empty())
+        .flat_map(|l| l.split('\n'))
         .map(parse::line)
         .collect::<Result<Vec<_>>>()
 }
@@ -136,8 +136,8 @@ fn test_example_1() {
 [1,[2,[3,[4,[5,6,7]]]],8,9]
 [1,[2,[3,[4,[5,6,0]]]],8,9]"#;
 
-    for (i, pair) in input.split("\n\n").filter(|l| *l != "").enumerate() {
-        let mut pair = pair.split("\n").map(parse::line);
+    for (i, pair) in input.split("\n\n").filter(|l| !l.is_empty()).enumerate() {
+        let mut pair = pair.split('\n').map(parse::line);
         let l = &pair
             .next()
             .ok_or_else(|| anyhow!("first line of input missing @ {}", i))
@@ -157,7 +157,7 @@ fn test_example_1() {
         }
     }
 
-    let lines = parse_input(&input).unwrap();
+    let lines = parse_input(input).unwrap();
     assert_eq!(13, indices_sum(&lines).unwrap());
 }
 

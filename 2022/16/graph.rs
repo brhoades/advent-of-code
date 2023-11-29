@@ -40,7 +40,7 @@ impl FromStr for Graph {
 
         for line in s.lines() {
             let parts = line
-                .split(" ")
+                .split(' ')
                 .filter(|l| l.trim() != "")
                 .collect::<Vec<_>>();
 
@@ -49,12 +49,12 @@ impl FromStr for Graph {
                     (
                         name,
                         rate.strip_prefix("rate=")
-                            .and_then(|r| r.strip_suffix(";"))
+                            .and_then(|r| r.strip_suffix(';'))
                             .ok_or_else(|| anyhow!("failed to parse rate: {}", rate))
                             .and_then(|r| r.parse().map_err(|e| anyhow!("{}", e)))?,
                         parts[9..]
-                            .into_iter()
-                            .map(|s| s.trim_end_matches(","))
+                            .iter()
+                            .map(|s| s.trim_end_matches(','))
                             .collect(),
                     )
                 } else {
@@ -99,7 +99,7 @@ impl FromStr for Graph {
 
 impl fmt::Display for Graph {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Graph with {} valves:\n", self.valves.len())?;
+        writeln!(f, "Graph with {} valves:", self.valves.len())?;
         let mut m: Vec<String> = self
             .valves
             .values()
@@ -115,7 +115,7 @@ impl fmt::Display for Graph {
         m.sort();
 
         for line in m {
-            write!(f, "  {}\n", line)?;
+            writeln!(f, "  {}", line)?;
         }
 
         Result::Ok(())
@@ -130,7 +130,7 @@ impl Graph {
 
     #[allow(dead_code)]
     pub fn neighbors(&self, name: &str) -> Option<&Vec<Valve>> {
-        self.valves.get(name).and_then(|v| Some(&v.neighbors))
+        self.valves.get(name).map(|v| &v.neighbors)
     }
 }
 

@@ -112,7 +112,7 @@ impl Iterator for RayIterator {
 
 #[test]
 fn test_basic_walk() {
-    let st = (4 as usize, 4 as usize);
+    let st = (4_usize, 4_usize);
     let (sx, sy) = st;
     let mut dirs = rays_from_point((10, 10), st.into());
     for (i, (x, y)) in dirs.next().expect("failed to get x+").enumerate() {
@@ -152,7 +152,7 @@ fn test_basic_walk() {
 // literal edge cases
 #[test]
 fn test_edge_cases() {
-    let st = (3 as usize, 3 as usize);
+    let st = (3_usize, 3_usize);
     let (sx, sy) = st;
     let mut dirs = rays_from_point((4, 4), st.into());
     for (x, y) in dirs.next().expect("failed to get x+") {

@@ -4,7 +4,7 @@ use anyhow::{anyhow, bail, Result};
 use std::collections::HashMap;
 
 pub fn run(input: String) -> Result<()> {
-    let fs = repl(input.split("\n").map(str::to_string).collect())?;
+    let fs = repl(input.split('\n').map(str::to_string).collect())?;
 
     let path_to_size: HashMap<_, _> = fs
         .iter()
@@ -17,20 +17,16 @@ pub fn run(input: String) -> Result<()> {
 
     // part 1: sum all directories with total size <= 100_000
     // this solution sucks... O(n^2)
-    let soln = path_to_size
-        .iter()
-        .map(|(_, s)| s)
+    let soln = path_to_size.values()
         .filter(|s| **s <= 100_000)
-        .fold(0, |acc, s| acc + s);
+        .sum::<usize>();
 
     println!("combined size of nodes <= 100k: {}", soln);
 
     // part 2: of our 70M, we need 30M free. Determine free space and find smallest node
     // to delete to achieve 30M free.
     let deficit = fs.size() - 40_000_000;
-    let soln = path_to_size
-        .iter()
-        .map(|(_, s)| s)
+    let soln = path_to_size.values()
         .filter(|s| **s >= deficit)
         .min();
     println!("smallest directory size >= 30_000_000: {}", soln.unwrap());
@@ -47,7 +43,7 @@ pub fn repl(input: Vec<String>) -> Result<tree::Filesystem> {
     let mut fs = tree::Filesystem::default();
 
     for line in input {
-        let parts: Vec<_> = line.split(" ").collect();
+        let parts: Vec<_> = line.split(' ').collect();
 
         match parts.as_slice() {
             &["$", "ls", path] | &["$", "dir", path] => {
@@ -65,7 +61,7 @@ pub fn repl(input: Vec<String>) -> Result<tree::Filesystem> {
                 target = None;
             }
             &["$", "cd", path] => {
-                let mut cwdparts = cwd.split("/").collect::<Vec<_>>();
+                let mut cwdparts = cwd.split('/').collect::<Vec<_>>();
                 cwd = if path == ".." {
                     cwdparts.pop();
                     cwdparts.join("/")

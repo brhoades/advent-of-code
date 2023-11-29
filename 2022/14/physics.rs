@@ -85,7 +85,7 @@ pub fn spawn_sand(m: &mut Map, at: (usize, usize)) -> Option<()> {
         _ => (),
     }
 
-    for (x, y) in vec![(at.0, at.1+1), (at.0-1, at.1+1), (at.0+1, at.1+1)] {
+    for (x, y) in [(at.0, at.1+1), (at.0-1, at.1+1), (at.0+1, at.1+1)] {
         match m.get(x, y) {
             Ok(Empty) => {
                 // println!("{:?} => ({}, {})", at, x, y);

@@ -17,7 +17,7 @@ pub fn run(input: String) -> Result<()> {
                 print!("f")
             }
         }
-        println!("")
+        println!()
     }
 
     println!("number of visible trees: {}", count_vismap(&vis_map));
@@ -29,9 +29,9 @@ pub fn run(input: String) -> Result<()> {
         .flat_map(|(x, row)| {
             row.iter()
                 .enumerate()
-                .map(move |(y, score)| ((x.clone(), y), score.clone()))
+                .map(move |(y, score)| ((x, y), *score))
         })
-        .max_by_key(|(_, s)| s.clone())
+        .max_by_key(|(_, s)| *s)
         .unwrap();
 
     println!("scenic score map:");
@@ -39,7 +39,7 @@ pub fn run(input: String) -> Result<()> {
         for y in 0..vis_map.len() {
             print!("({:>3})", scenic_map.get(x).unwrap().get(y).unwrap());
         }
-        println!("")
+        println!()
     }
 
     println!(
@@ -52,11 +52,11 @@ pub fn run(input: String) -> Result<()> {
 
 fn parse_trees(input: &str) -> Result<Vec<Vec<u8>>> {
     input
-        .split("\n")
-        .filter(|row| *row != "")
+        .split('\n')
+        .filter(|row| !row.is_empty())
         .map(|row| {
             row.split("")
-                .filter(|col| *col != "")
+                .filter(|col| !col.is_empty())
                 .map(|v| {
                     v.parse()
                         .map_err(|e| anyhow!("failed to parse '{}': {}", v, e))
@@ -95,15 +95,15 @@ fn get_vismap(input: &str) -> Result<Vec<Vec<bool>>> {
         *vis_map.get_mut(src.y).unwrap().get_mut(src.x).unwrap() = true;
 
         // walk the edges and then ray out.
-        for dir in rays_from_point(&dimens, src) {
+        for dir in rays_from_point(dimens, src) {
             let mut last = Some(start);
 
             for (x, y) in dir {
                 let tree = grid
                     .get(y)
-                    .expect(&format!("failed to get y={}", y))
+                    .unwrap_or_else(|| panic!("failed to get y={}", y))
                     .get(x)
-                    .expect(&format!("failed to get x @ ({}, {})", x, y));
+                    .unwrap_or_else(|| panic!("failed to get x @ ({}, {})", x, y));
 
                 // println!(
                 //     "({}, {}) ==> ({}, {}): {} >= {:?}",
@@ -117,7 +117,7 @@ fn get_vismap(input: &str) -> Result<Vec<Vec<bool>>> {
                 let vm_row = vis_map.get_mut(y).unwrap();
                 *vm_row
                     .get_mut(x)
-                    .expect(&format!("could not fetch ({},{}) from vismap", x, y)) = true;
+                    .unwrap_or_else(|| panic!("could not fetch ({},{}) from vismap", x, y)) = true;
                 last = Some(tree);
             }
         }
@@ -266,7 +266,7 @@ fn scenic_score_map(input: &String) -> Result<Vec<Vec<u32>>> {
             let mut vis = 1;
             let our_size = grid.get(y).unwrap().get(x).unwrap();
 
-            for dir in rays_from_point(&dimens, (x, y).into()) {
+            for dir in rays_from_point(dimens, (x, y).into()) {
                 // product of all directions, sum this line
                 let mut line = 0;
                 for (tx, ty) in dir {
@@ -279,7 +279,7 @@ fn scenic_score_map(input: &String) -> Result<Vec<Vec<u32>>> {
                 }
 
                 if line != 0 {
-                    vis = vis * line;
+                    vis *= line;
                 }
             }
 
@@ -374,7 +374,7 @@ fn assert_scenic_tree_eq(expected: Vec<Vec<u32>>, actual: Vec<Vec<u32>>) {
             for score in erow {
                 print!("({:>3})", score);
             }
-            println!("")
+            println!()
         }
 
         println!("\nactual:");
@@ -382,7 +382,7 @@ fn assert_scenic_tree_eq(expected: Vec<Vec<u32>>, actual: Vec<Vec<u32>>) {
             for score in arow {
                 print!("({:>3})", score);
             }
-            println!("")
+            println!()
         }
 
         println!(

@@ -18,7 +18,7 @@ pub fn run(input: String) -> Result<()> {
     println!("\n");
 
     for order in orders {
-        println!("");
+        println!();
 
         println!("{} crate(s): {} => {}", order.count, order.from, order.to);
         let mut crates: Vec<_> = st.get_mut(&order.from)
@@ -36,7 +36,7 @@ pub fn run(input: String) -> Result<()> {
             dest.push_front(cr);
         }
 
-        println!("");
+        println!();
         print_stack(st.iter());
     }
 
@@ -84,7 +84,7 @@ fn build_stack(stack_input: &str) -> Result<HashMap<String, VecDeque<String>>> {
         .chunks(4)
         .map(std::str::from_utf8)
         .map(|s| s.expect("input does not support multibyte utf8").trim())
-        .partition(|s| *s == "" || s.parse::<i64>().is_err());
+        .partition(|s| s.is_empty() || s.parse::<i64>().is_err());
 
     let mut stack: HashMap<String, VecDeque<String>> = labels
         .clone()
@@ -98,7 +98,7 @@ fn build_stack(stack_input: &str) -> Result<HashMap<String, VecDeque<String>>> {
     for row in 0..height {
         for col in 0..width {
             let cell = values[row*width+col];
-            if cell == "" {
+            if cell.is_empty() {
                 continue
             }
 
@@ -120,7 +120,7 @@ struct Order {
 fn parse_orders(input: &str) -> Result<Vec<Order>> {
     input
         .lines()
-        .filter(|l| *l != "")
+        .filter(|l| !l.is_empty())
         .map(Order::from_str)
         .collect()
 }
@@ -130,7 +130,7 @@ impl FromStr for Order {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // move # from # to #
-        let mut segs = s.split(" ").filter_map(|t| t.parse::<i32>().ok());
+        let mut segs = s.split(' ').filter_map(|t| t.parse::<i32>().ok());
 
         Ok(Order{
             count: segs.next().ok_or_else(|| anyhow!("invalid line format"))?,
