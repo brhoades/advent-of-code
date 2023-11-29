@@ -180,9 +180,7 @@ fn find_shortest_path_dijkstra_inner(
             other => *other = Some(path.score() + 1),
         }
 
-        results.extend(find_shortest_path_dijkstra_inner(
-            m, step, path, visited,
-        ))
+        results.extend(find_shortest_path_dijkstra_inner(m, step, path, visited))
     }
 
     // shared with parent. undo modification

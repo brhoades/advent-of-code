@@ -3,7 +3,13 @@ use anyhow::{anyhow, bail, Result};
 use super::{Value, Value::*};
 
 pub fn line(input: &str) -> Result<Value> {
-    value(&input.split("").filter(|c| !c.is_empty()).collect::<Vec<_>>()).map(|(_, v)| v)
+    value(
+        &input
+            .split("")
+            .filter(|c| !c.is_empty())
+            .collect::<Vec<_>>(),
+    )
+    .map(|(_, v)| v)
 }
 
 // str as a value, consuming input until a ] is

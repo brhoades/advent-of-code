@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 use std::cmp::{max, min};
 use std::fmt;
+use std::iter::repeat;
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
-use std::iter::repeat;
 
-pub use advent_of_code::{prelude::*, coord::Coordinate as BaseCoordinate, map::Map as BaseMap};
+pub use advent_of_code::{coord::Coordinate as BaseCoordinate, map::Map as BaseMap, prelude::*};
 
 type Coordinate = BaseCoordinate<usize>;
 
@@ -53,18 +53,28 @@ impl Map {
         for (y, row) in self.iter_rows().enumerate() {
             for (x, t) in row.iter().enumerate() {
                 if *t == Empty {
-                    continue
+                    continue;
                 }
 
                 match minc {
-                    None => minc = Some(Coordinate{x, y}),
-                    Some(c) if c.x <= x || c.y <= y => minc = Some(Coordinate{x: min(c.x, x), y: min(c.y, y)}),
+                    None => minc = Some(Coordinate { x, y }),
+                    Some(c) if c.x <= x || c.y <= y => {
+                        minc = Some(Coordinate {
+                            x: min(c.x, x),
+                            y: min(c.y, y),
+                        })
+                    }
                     _ => (),
                 }
 
                 match maxc {
-                    None => maxc = Some(Coordinate{x, y}),
-                    Some(c) if c.x >= x || c.y >= y => maxc = Some(Coordinate{x: max(c.x, x), y: max(c.y, y)}),
+                    None => maxc = Some(Coordinate { x, y }),
+                    Some(c) if c.x >= x || c.y >= y => {
+                        maxc = Some(Coordinate {
+                            x: max(c.x, x),
+                            y: max(c.y, y),
+                        })
+                    }
                     _ => (),
                 }
             }
@@ -72,7 +82,6 @@ impl Map {
 
         minc.and_then(|min| maxc.map(|max| (min, max)))
     }
-
 
     pub fn height(&self) -> usize {
         self.dimensions.1
@@ -105,7 +114,7 @@ impl fmt::Display for Map {
 
         for (y, row) in self.data.iter_rows().enumerate() {
             if y > upper.y || y < lower.y {
-                continue
+                continue;
             }
             for col in &row[lower.x..=upper.x] {
                 write!(f, "{}", col)?;
@@ -124,12 +133,16 @@ impl FromStr for Map {
     // and derives a Map
     fn from_str(s: &str) -> Result<Self> {
         let lines: Vec<Vec<Coordinate>> = s.lines().map(parse_line).collect::<Result<_>>()?;
-        let first = lines.first()
+        let first = lines
+            .first()
             .and_then(|l| l.first())
             .ok_or_else(|| anyhow!("expect at least one line"))?;
-        let upper = lines.iter().flatten().fold((first.x, first.y), |last, curr| {
-            (max(last.0, curr.x), max(last.1, curr.y))
-        });
+        let upper = lines
+            .iter()
+            .flatten()
+            .fold((first.x, first.y), |last, curr| {
+                (max(last.0, curr.x), max(last.1, curr.y))
+            });
 
         let dimensions = ((upper.0 + 1) as usize, (upper.1 + 1) as usize); // add 1 since coordinates include 0
 
@@ -143,17 +156,24 @@ impl FromStr for Map {
             for tp in line {
                 if let Some(lp) = last {
                     let rng = if lp.x == tp.x {
-                        repeat(lp.x).zip(min(lp.y, tp.y)..=max(lp.y, tp.y)).collect::<Vec<(usize, usize)>>()
+                        repeat(lp.x)
+                            .zip(min(lp.y, tp.y)..=max(lp.y, tp.y))
+                            .collect::<Vec<(usize, usize)>>()
                     } else if lp.y == tp.y {
-                        (min(lp.x, tp.x)..=max(lp.x, tp.x)).zip(repeat(lp.y)).collect::<Vec<(usize, usize)>>()
+                        (min(lp.x, tp.x)..=max(lp.x, tp.x))
+                            .zip(repeat(lp.y))
+                            .collect::<Vec<(usize, usize)>>()
                     } else {
-                        bail!("only vertical or horizontal line drawing is supported, got: {} -> {}", lp, tp);
+                        bail!(
+                            "only vertical or horizontal line drawing is supported, got: {} -> {}",
+                            lp,
+                            tp
+                        );
                     };
 
                     for (x, y) in rng {
                         *m.get_mut(x, y)? = Rock;
                     }
-
                 }
 
                 last = Some(tp)
@@ -182,7 +202,6 @@ fn parse_line(line: &str) -> Result<Vec<Coordinate>> {
     line.split(" -> ").map(FromStr::from_str).collect()
 }
 
-
 #[cfg(test)]
 mod test {
     use std::collections::HashSet;
@@ -194,9 +213,9 @@ mod test {
         let input = r#"2,2 -> 2,5 -> 4,5"#;
         let m: Map = input.parse().expect("should parse");
 
-
         let wall_coords = repeat(2)
-            .zip(2..=5).chain((2..=4).zip(repeat(5)))
+            .zip(2..=5)
+            .chain((2..=4).zip(repeat(5)))
             .collect::<HashSet<(usize, usize)>>();
 
         for x in 2..=4 {
@@ -235,6 +254,12 @@ mod test {
         // sand falls from (500, 0)
         *m.get_mut(500, 0).unwrap() = Source;
 
-        assert_eq!(expected, &m.to_string(), "maps should equal:\nexpected:\n{}\n\nactual:\n{}\n", expected, m);
+        assert_eq!(
+            expected,
+            &m.to_string(),
+            "maps should equal:\nexpected:\n{}\n\nactual:\n{}\n",
+            expected,
+            m
+        );
     }
 }

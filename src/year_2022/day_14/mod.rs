@@ -11,7 +11,6 @@ pub fn run(input: String) -> Result<()> {
 
     println!("took {} rounds to fill", cnt);
 
-
     println!("========= part 2 =========");
     let mut m: Map = input.parse()?;
     let cnt = time_until_source_covered(&mut m, (500, 0));

@@ -69,8 +69,7 @@ impl Filesystem {
     }
 }
 
-#[derive(Debug, PartialEq)]
-#[derive(Default)]
+#[derive(Debug, PartialEq, Default)]
 pub struct Node {
     path: PathBuf, // the full path to this node
     children: HashMap<String, Child>,
@@ -164,8 +163,6 @@ impl Node {
             .collect()
     }
 }
-
-
 
 impl fmt::Display for Filesystem {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

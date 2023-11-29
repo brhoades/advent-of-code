@@ -254,8 +254,7 @@ fn scenic_score_map(input: &str) -> Result<Vec<Vec<u32>>> {
     let mut scenic_map: Vec<Vec<u32>> = Vec::with_capacity(grid.len());
     let width = grid.iter().map(|x| x.len()).max().unwrap();
     for _ in 0..grid.len() {
-        scenic_map.push(
-        vec![0; width]);
+        scenic_map.push(vec![0; width]);
     }
     let dimens = (width, grid.len());
 

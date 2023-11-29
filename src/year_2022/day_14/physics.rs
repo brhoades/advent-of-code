@@ -2,7 +2,6 @@ use std::cmp::max;
 
 use super::map::{Map, Tile::*};
 
-
 /// resizes to be larger, then draws a long line at bounds.1.1 + 2
 pub fn time_until_source_covered(m: &mut Map, spawn: (usize, usize)) -> usize {
     let dimens = m.dimensions();
@@ -15,14 +14,22 @@ pub fn time_until_source_covered(m: &mut Map, spawn: (usize, usize)) -> usize {
     } else {
         bmaxx + line_width
     };
-    let bminx = max(0, bminx-line_width);
+    let bminx = max(0, bminx - line_width);
 
     if spawn.0 > dimens.0 || spawn.1 > dimens.1 || bmaxy + 2 > dimens.1 {
-        let ndimens = (max(bmaxx + 1, spawn.0), max(max(dimens.1, spawn.1), bmaxy + 3));
-        println!("resize m from {:?} to {:?} so that it includes spawn ({:?}) and line (y={})", dimens, ndimens, spawn, bmaxy + 2);
+        let ndimens = (
+            max(bmaxx + 1, spawn.0),
+            max(max(dimens.1, spawn.1), bmaxy + 3),
+        );
+        println!(
+            "resize m from {:?} to {:?} so that it includes spawn ({:?}) and line (y={})",
+            dimens,
+            ndimens,
+            spawn,
+            bmaxy + 2
+        );
         m.resize(ndimens.0, ndimens.1);
     }
-
 
     println!("drawing line from x={} to x={}", bminx, bmaxx);
     *m.get_mut(spawn.0, spawn.1).unwrap() = Source;
@@ -35,13 +42,16 @@ pub fn time_until_source_covered(m: &mut Map, spawn: (usize, usize)) -> usize {
     loop {
         // println!("\n{}", m);
         if spawn_sand(m, (spawn.0, spawn.1)).is_none() {
-            println!("could no longer place sand while trying to cover source:\n{}", m);
+            println!(
+                "could no longer place sand while trying to cover source:\n{}",
+                m
+            );
             return 0;
         }
         cnt += 1;
 
         if let Ok(Sand) = m.get(spawn.0, spawn.1) {
-            break
+            break;
         }
     }
 
@@ -68,7 +78,6 @@ pub fn time_until_full(m: &mut Map, spawn: (usize, usize)) -> usize {
     cnt
 }
 
-
 /// spawn_sand spawns sand at the passed coordinates and simulates
 /// phyiscs on it until it drops. If it does not settle and instead falls
 /// off the map, None is returned.
@@ -80,19 +89,18 @@ pub fn spawn_sand(m: &mut Map, at: (usize, usize)) -> Option<()> {
         Ok(_) => {
             println!("cannot spawn at {:?}, already taken", at);
             return None;
-        },
+        }
         _ => (),
     }
 
-    for (x, y) in [(at.0, at.1+1), (at.0-1, at.1+1), (at.0+1, at.1+1)] {
+    for (x, y) in [(at.0, at.1 + 1), (at.0 - 1, at.1 + 1), (at.0 + 1, at.1 + 1)] {
         match m.get(x, y) {
             Ok(Empty) => {
                 // println!("{:?} => ({}, {})", at, x, y);
-                return spawn_sand(m, (x, y))
-            },
+                return spawn_sand(m, (x, y));
+            }
             Err(_) => return None,
             Ok(_) => (),
-
         }
     }
 
@@ -101,11 +109,10 @@ pub fn spawn_sand(m: &mut Map, at: (usize, usize)) -> Option<()> {
         Ok(ref mut t) => {
             **t = Sand;
             Some(())
-        },
+        }
         _ => None,
     }
 }
-
 
 #[cfg(test)]
 mod test {

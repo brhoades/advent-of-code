@@ -17,7 +17,8 @@ pub fn run(input: String) -> Result<()> {
 
     // part 1: sum all directories with total size <= 100_000
     // this solution sucks... O(n^2)
-    let soln = path_to_size.values()
+    let soln = path_to_size
+        .values()
         .filter(|s| **s <= 100_000)
         .sum::<usize>();
 
@@ -26,9 +27,7 @@ pub fn run(input: String) -> Result<()> {
     // part 2: of our 70M, we need 30M free. Determine free space and find smallest node
     // to delete to achieve 30M free.
     let deficit = fs.size() - 40_000_000;
-    let soln = path_to_size.values()
-        .filter(|s| **s >= deficit)
-        .min();
+    let soln = path_to_size.values().filter(|s| **s >= deficit).min();
     println!("smallest directory size >= 30_000_000: {}", soln.unwrap());
 
     Ok(())

@@ -125,12 +125,12 @@ impl<'a> Simulation<'a> {
         match self.max_players {
             // spawn mechanics are different otherwise
             3.. => unimplemented!("only up to 2 players are supported"),
-            2 =>  {
+            2 => {
                 let pos = self.graph.start().unwrap();
                 if self.spawn_player().is_some() {
                     self.players.push(Player::new("2", pos));
                 }
-            },
+            }
             _ => (),
         };
 
@@ -304,7 +304,8 @@ impl<'a> Simulation<'a> {
                 };
                 let player_pos = player_pos.iter().collect();
                 if visited
-                    .get_best_next_node(&player_pos, &(self.turn + 1), &next_flow).is_none()
+                    .get_best_next_node(&player_pos, &(self.turn + 1), &next_flow)
+                    .is_none()
                 {
                     trace!("player {} cannot stay @ {}", i + 1, pos.name);
                     continue;
@@ -454,8 +455,7 @@ impl VisitedMap {
 
     fn get_next_best_nodes_inner(
         &mut self,
-        #[allow(clippy::ptr_arg)]
-        valves: &Vec<&String>,
+        #[allow(clippy::ptr_arg)] valves: &Vec<&String>,
         turn: &u32,
         score: &u32,
     ) -> Vec<(String, u32)> {

@@ -1,8 +1,8 @@
-use std::collections::{VecDeque, HashMap};
+use std::collections::{HashMap, VecDeque};
 use std::str::FromStr;
 
-use anyhow::Result;
 use anyhow::anyhow;
+use anyhow::Result;
 
 pub fn run(input: String) -> Result<()> {
     let (stack_input, order_input) = input
@@ -21,7 +21,8 @@ pub fn run(input: String) -> Result<()> {
         println!();
 
         println!("{} crate(s): {} => {}", order.count, order.from, order.to);
-        let mut crates: Vec<_> = st.get_mut(&order.from)
+        let mut crates: Vec<_> = st
+            .get_mut(&order.from)
             .unwrap()
             .drain(0..(order.count as usize))
             .collect(); // so we can borrow again to insert
@@ -50,13 +51,16 @@ pub fn run(input: String) -> Result<()> {
 
     let ans: String = sol
         .into_iter()
-        .map(|(_, v)| v.front().expect("unexpected empty stack").trim_matches(|c| c == '[' || c == ']'))
+        .map(|(_, v)| {
+            v.front()
+                .expect("unexpected empty stack")
+                .trim_matches(|c| c == '[' || c == ']')
+        })
         .fold(String::new(), |a, b| a + b);
     println!("top of all stacks: '{}'", ans);
 
     Ok(())
 }
-
 
 // builds a stack by using a guarantee of retangular input to consume
 // 4 byte chunks off the input
@@ -70,7 +74,7 @@ fn build_stack(stack_input: &str) -> Result<HashMap<String, VecDeque<String>>> {
     let max = lines.iter().max().unwrap().len();
 
     for line in &mut lines {
-        for _ in 0..(max-line.len()) {
+        for _ in 0..(max - line.len()) {
             line.push(' ');
         }
     }
@@ -97,19 +101,20 @@ fn build_stack(stack_input: &str) -> Result<HashMap<String, VecDeque<String>>> {
 
     for row in 0..height {
         for col in 0..width {
-            let cell = values[row*width+col];
+            let cell = values[row * width + col];
             if cell.is_empty() {
-                continue
+                continue;
             }
 
-            stack.get_mut(labels[col]).unwrap().push_back(cell.to_owned())
+            stack
+                .get_mut(labels[col])
+                .unwrap()
+                .push_back(cell.to_owned())
         }
     }
 
-
     Ok(stack)
 }
-
 
 struct Order {
     count: i32,
@@ -132,25 +137,37 @@ impl FromStr for Order {
         // move # from # to #
         let mut segs = s.split(' ').filter_map(|t| t.parse::<i32>().ok());
 
-        Ok(Order{
+        Ok(Order {
             count: segs.next().ok_or_else(|| anyhow!("invalid line format"))?,
-            from: segs.next().ok_or_else(|| anyhow!("invalid line format"))?.to_string(),
-            to: segs.next().ok_or_else(|| anyhow!("invalid line format"))?.to_string(),
+            from: segs
+                .next()
+                .ok_or_else(|| anyhow!("invalid line format"))?
+                .to_string(),
+            to: segs
+                .next()
+                .ok_or_else(|| anyhow!("invalid line format"))?
+                .to_string(),
         })
     }
 }
 
 fn print_stack<'a, S, I, V, It>(st: It)
-where S: AsRef<str> + 'a,
+where
+    S: AsRef<str> + 'a,
     V: std::borrow::Borrow<VecDeque<String>> + 'a,
     I: std::borrow::Borrow<(S, V)>,
-    It: Iterator<Item = I> {
+    It: Iterator<Item = I>,
+{
     let mut output: Vec<_> = st.collect();
     output.sort_by_cached_key(|item| item.borrow().0.as_ref().parse::<i32>().unwrap());
 
     for entry in output {
         let (col, row) = entry.borrow();
-        let row = row.borrow().iter().map(|s| s.to_owned()).collect::<Vec<String>>();
+        let row = row
+            .borrow()
+            .iter()
+            .map(|s| s.to_owned())
+            .collect::<Vec<String>>();
         println!("{}:\t{}", col.as_ref(), row.join(" "));
     }
 }

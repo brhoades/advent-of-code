@@ -52,10 +52,7 @@ impl FromStr for Graph {
                             .and_then(|r| r.strip_suffix(';'))
                             .ok_or_else(|| anyhow!("failed to parse rate: {}", rate))
                             .and_then(|r| r.parse().map_err(|e| anyhow!("{}", e)))?,
-                        parts[9..]
-                            .iter()
-                            .map(|s| s.trim_end_matches(','))
-                            .collect(),
+                        parts[9..].iter().map(|s| s.trim_end_matches(',')).collect(),
                     )
                 } else {
                     bail!("unknown format for line: {}", s)

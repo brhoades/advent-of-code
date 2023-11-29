@@ -1,4 +1,4 @@
-mod twenty_two;
+mod year_2022;
 
 use std::fs::read_to_string;
 use std::path::PathBuf;
@@ -38,18 +38,18 @@ fn main() -> Result<()> {
     }
 
     match (opt.year, opt.problem) {
-        (2022, 5) => twenty_two::five::run(input),
-        (2022, 6) => twenty_two::six::run(input),
-        (2022, 7) => twenty_two::seven::run(input),
-        (2022, 8) => twenty_two::eight::run(input),
-        (2022, 9) => twenty_two::nine::run(input),
-        (2022, 10) => twenty_two::ten::run(input),
-        (2022, 11) => twenty_two::eleven::run(input),
-        (2022, 12) => twenty_two::twelve::run(input),
-        (2022, 13) => twenty_two::thirteen::run(input),
-        (2022, 14) => twenty_two::fourteen::run(input),
-        (2022, 15) => twenty_two::fifteen::run(input),
-        (2022, 16) => twenty_two::sixteen::run(input),
+        (2022, 5) => year_2022::day_05::run(input),
+        (2022, 6) => year_2022::day_06::run(input),
+        (2022, 7) => year_2022::day_07::run(input),
+        (2022, 8) => year_2022::day_08::run(input),
+        (2022, 9) => year_2022::day_09::run(input),
+        (2022, 10) => year_2022::day_10::run(input),
+        (2022, 11) => year_2022::day_11::run(input),
+        (2022, 12) => year_2022::day_12::run(input),
+        (2022, 13) => year_2022::day_13::run(input),
+        (2022, 14) => year_2022::day_14::run(input),
+        (2022, 15) => year_2022::day_15::run(input),
+        (2022, 16) => year_2022::day_16::run(input),
         (2022, _) => bail!("unknown problem number {}", opt.problem),
         (_, _) => bail!("unkown year {}", opt.year),
     }

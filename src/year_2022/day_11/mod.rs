@@ -40,10 +40,7 @@ pub fn run(input: String) -> Result<()> {
 
     println!("=================\nPart 2\n=================");
     let mut monkies = parse_monkies(&input)?;
-    let worry_modulus = monkies
-        .iter()
-        .map(|m| m.test_divisor)
-        .product::<u32>();
+    let worry_modulus = monkies.iter().map(|m| m.test_divisor).product::<u32>();
     let pb = ProgressBar::new(10000);
     pb.set_style(
         ProgressStyle::with_template(
@@ -336,10 +333,7 @@ Monkey 3:
     );
 
     let mut monkies = parse_monkies(&input).unwrap();
-    let worry_modulus = monkies
-        .iter()
-        .map(|m| m.test_divisor)
-        .product::<u32>();
+    let worry_modulus = monkies.iter().map(|m| m.test_divisor).product::<u32>();
 
     for _ in 0..10000 {
         monkey_a_round(&mut monkies, None, Some(worry_modulus));
