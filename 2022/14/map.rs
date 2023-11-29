@@ -52,9 +52,8 @@ impl Map {
         let mut maxc = None;
         for (y, row) in self.iter_rows().enumerate() {
             for (x, t) in row.iter().enumerate() {
-                match t {
-                    Empty => continue,
-                    _ => (),
+                if *t == Empty {
+                    continue
                 }
 
                 match minc {

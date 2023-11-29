@@ -14,11 +14,7 @@ impl Ord for Value {
 
 impl PartialOrd for Value {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match list_order_correct_inner(self, other) {
-            Some(true) => Some(Less),
-            Some(false) => Some(Greater),
-            _ => Some(Equal),
-        }
+        Some(self.cmp(other))
     }
 }
 

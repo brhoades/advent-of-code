@@ -4,10 +4,6 @@ pub fn find_start(m: &Map<Tile>) -> (usize, usize) {
     find(m, |t| *t == Start).pop().unwrap()
 }
 
-pub fn find_end(m: &Map<Tile>) -> (usize, usize) {
-    find(m, |t| *t == End).pop().unwrap()
-}
-
 pub fn find<F: Fn(&Tile) -> bool>(m: &Map<Tile>, heuristic: F) -> Vec<(usize, usize)> {
     m.iter_rows()
         .enumerate()
@@ -110,10 +106,8 @@ pub fn find_shortest_path_dijkstra_from(m: &Map<Tile>, x: usize, y: usize) -> Op
     let mut path = VisitedMap::new(m.dimensions.0, m.dimensions.1);
     let mut visited = Map::<Option<usize>>::new_dense(m.dimensions.0, m.dimensions.1);
 
-    let end = find_end(m);
-
     // walk paths and return the one with the lowest cost
-    find_shortest_path_dijkstra_inner(m, (x, y), end, &mut path, &mut visited)
+    find_shortest_path_dijkstra_inner(m, (x, y), &mut path, &mut visited)
         .into_iter()
         .min_by_key(|path| path.score())
 }
@@ -129,7 +123,6 @@ pub fn find_shortest_path_dijkstra(m: &Map<Tile>) -> Option<VisitedMap> {
 fn find_shortest_path_dijkstra_inner(
     m: &Map<Tile>,
     pos: (usize, usize),
-    end: (usize, usize),
     path: &mut VisitedMap,
     visited: &mut Map<Option<usize>>,
 ) -> Vec<VisitedMap> {
@@ -188,7 +181,7 @@ fn find_shortest_path_dijkstra_inner(
         }
 
         results.extend(find_shortest_path_dijkstra_inner(
-            m, step, end, path, visited,
+            m, step, path, visited,
         ))
     }
 

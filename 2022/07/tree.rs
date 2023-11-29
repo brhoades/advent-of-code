@@ -253,7 +253,7 @@ fn test_iter_fs() {
 
     fs.add("/foobar/baz/snap", 10).unwrap();
     fs.add("/foobar/baz/two", 15).unwrap();
-    let mut it = fs.iter();
+    let it = fs.iter();
     // path => size | children #
     let mut seen: HashMap<String, usize> = HashMap::default();
     for (p, n) in it {

@@ -122,15 +122,17 @@ impl<'a> Simulation<'a> {
         let mut visited = VisitedMap::new(nodes.as_slice());
 
         // we always spawn up to max_players ASAP
-        if self.max_players > 2 {
+        match self.max_players {
             // spawn mechanics are different otherwise
-            unimplemented!("only up to 2 players are supported");
-        } else if self.max_players == 2 {
-            let pos = self.graph.start().unwrap();
-            if self.spawn_player().is_some() {
-                self.players.push(Player::new("2", pos));
-            }
-        }
+            3.. => unimplemented!("only up to 2 players are supported"),
+            2 =>  {
+                let pos = self.graph.start().unwrap();
+                if self.spawn_player().is_some() {
+                    self.players.push(Player::new("2", pos));
+                }
+            },
+            _ => (),
+        };
 
         let result = self.clone().solve_dijkstra_from_node(&mut visited).unwrap();
         for t in &result.actions {
@@ -452,7 +454,7 @@ impl VisitedMap {
 
     fn get_next_best_nodes_inner(
         &mut self,
-        #[allow(ptr_arg)]
+        #[allow(clippy::ptr_arg)]
         valves: &Vec<&String>,
         turn: &u32,
         score: &u32,

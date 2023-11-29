@@ -240,7 +240,7 @@ fn parse_monkey(index: usize, monkey: &str) -> Result<Monkey> {
     })
 }
 
-fn parse_monkies(input: &String) -> Result<Vec<Monkey>> {
+fn parse_monkies(input: &str) -> Result<Vec<Monkey>> {
     input
         .split("\n\n")
         .filter(|l| !l.is_empty())
@@ -294,10 +294,9 @@ Monkey 3:
   Operation: new = old + 3
   Test: divisible by 17
     If true: throw to monkey 0
-    If false: throw to monkey 1"#
-        .to_string();
+    If false: throw to monkey 1"#;
 
-    let mut monkies = parse_monkies(&input).unwrap();
+    let mut monkies = parse_monkies(input).unwrap();
 
     let m = monkies.get(0).unwrap();
     assert_eq!(vec![79, 98], m.items);

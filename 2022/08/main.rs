@@ -248,15 +248,14 @@ ttttt"#;
 // Pt 2 follows. it bad.
 
 // calculate how many trees are visible from a position
-fn scenic_score_map(input: &String) -> Result<Vec<Vec<u32>>> {
+fn scenic_score_map(input: &str) -> Result<Vec<Vec<u32>>> {
     let grid = parse_trees(input)?;
 
     let mut scenic_map: Vec<Vec<u32>> = Vec::with_capacity(grid.len());
     let width = grid.iter().map(|x| x.len()).max().unwrap();
     for _ in 0..grid.len() {
-        let mut row = vec![];
-        row.resize(width, 0);
-        scenic_map.push(row);
+        scenic_map.push(
+        vec![0; width]);
     }
     let dimens = (width, grid.len());
 
@@ -297,7 +296,7 @@ fn minimal_scenic_score_lines() {
 34"#;
     let expected = vec![vec![1, 1], vec![1, 1]];
 
-    assert_scenic_tree_eq(expected, scenic_score_map(&test.to_string()).unwrap());
+    assert_scenic_tree_eq(expected, scenic_score_map(test).unwrap());
 }
 
 #[test]
@@ -313,7 +312,7 @@ fn fourxfour_blind_score_lines() {
         vec![1, 1, 2, 3],
     ];
 
-    assert_scenic_tree_eq(expected, scenic_score_map(&test.to_string()).unwrap());
+    assert_scenic_tree_eq(expected, scenic_score_map(test).unwrap());
 }
 
 #[test]
@@ -329,7 +328,7 @@ fn fourxfour_big_trees() {
         vec![6, 1, 6, 1],
     ];
 
-    assert_scenic_tree_eq(expected, scenic_score_map(&test.to_string()).unwrap());
+    assert_scenic_tree_eq(expected, scenic_score_map(test).unwrap());
 }
 
 #[test]
@@ -340,7 +339,7 @@ fn test_examples_scenic() {
 33549
 35390"#;
 
-    let scores = scenic_score_map(&test.to_string()).unwrap();
+    let scores = scenic_score_map(test).unwrap();
     assert_eq!(4, *scores.get(1).unwrap().get(2).unwrap());
 
     let test = r#"30373
@@ -348,7 +347,7 @@ fn test_examples_scenic() {
 65332
 33549
 35390"#;
-    let scores = scenic_score_map(&test.to_string()).unwrap();
+    let scores = scenic_score_map(test).unwrap();
     assert_eq!(8, *scores.get(3).unwrap().get(2).unwrap());
 }
 

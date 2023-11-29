@@ -40,9 +40,8 @@ pub fn time_until_source_covered(m: &mut Map, spawn: (usize, usize)) -> usize {
         }
         cnt += 1;
 
-        match m.get(spawn.0, spawn.1) {
-            Ok(Sand) => break,
-            _ => (),
+        if let Ok(Sand) = m.get(spawn.0, spawn.1) {
+            break
         }
     }
 
