@@ -332,7 +332,7 @@ Monkey 3:
         monkies.iter().map(|m| m.inspections).collect::<Vec<_>>()
     );
 
-    let mut monkies = parse_monkies(&input).unwrap();
+    let mut monkies = parse_monkies(input).unwrap();
     let worry_modulus = monkies.iter().map(|m| m.test_divisor).product::<u32>();
 
     for _ in 0..10000 {

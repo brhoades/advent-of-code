@@ -155,7 +155,7 @@ fn test_edge_cases() {
     let st = (3_usize, 3_usize);
     let (sx, sy) = st;
     let mut dirs = rays_from_point((4, 4), st.into());
-    for (x, y) in dirs.next().expect("failed to get x+") {
+    if let Some((x, y)) = dirs.next().expect("failed to get x+").next() {
         panic!("should not have gotten point ({}, {}) in x+", x, y);
     }
     for (i, (x, y)) in dirs.next().expect("failed to get x-").enumerate() {
@@ -166,7 +166,7 @@ fn test_edge_cases() {
             i
         );
     }
-    for (x, y) in dirs.next().expect("failed to get y+") {
+    if let Some((x, y)) = dirs.next().expect("failed to get y+").next() {
         panic!("should not have gotten point ({}, {}) in y+", x, y);
     }
     for (i, (x, y)) in dirs.next().expect("failed to get y-").enumerate() {

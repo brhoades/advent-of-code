@@ -1,4 +1,5 @@
-use advent_of_code::{coord::Coordinate, prelude::*};
+#![allow(dead_code)]
+use advent_of_code::prelude::*;
 
 /// Map is grid of configurable maximum width with growing height.
 /// Map stores whether a block is set or not.

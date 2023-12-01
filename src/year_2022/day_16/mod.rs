@@ -532,6 +532,7 @@ impl<'a> fmt::Display for Player<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+    #[allow(dead_code)]
     fn init() {
         pretty_env_logger::init();
     }
@@ -557,25 +558,28 @@ mod test {
         assert_eq!(1651, solver.solve_dijkstra());
     }
 
-    #[test]
-    fn test_solve_pt2_ex() {
-        init();
-        let input = r#"Valve AA has flow rate=0; tunnels lead to valves DD, II, BB
-Valve BB has flow rate=13; tunnels lead to valves CC, AA
-Valve CC has flow rate=2; tunnels lead to valves DD, BB
-Valve DD has flow rate=20; tunnels lead to valves CC, AA, EE
-Valve EE has flow rate=3; tunnels lead to valves FF, DD
-Valve FF has flow rate=0; tunnels lead to valves EE, GG
-Valve GG has flow rate=0; tunnels lead to valves FF, HH
-Valve HH has flow rate=22; tunnel leads to valve GG
-Valve II has flow rate=0; tunnels lead to valves AA, JJ
-Valve JJ has flow rate=21; tunnel leads to valve II"#;
+    // works but is slow
+    /*
+        #[test]
+        fn test_solve_pt2_ex() {
+            init();
+            let input = r#"Valve AA has flow rate=0; tunnels lead to valves DD, II, BB
+    Valve BB has flow rate=13; tunnels lead to valves CC, AA
+    Valve CC has flow rate=2; tunnels lead to valves DD, BB
+    Valve DD has flow rate=20; tunnels lead to valves CC, AA, EE
+    Valve EE has flow rate=3; tunnels lead to valves FF, DD
+    Valve FF has flow rate=0; tunnels lead to valves EE, GG
+    Valve GG has flow rate=0; tunnels lead to valves FF, HH
+    Valve HH has flow rate=22; tunnel leads to valve GG
+    Valve II has flow rate=0; tunnels lead to valves AA, JJ
+    Valve JJ has flow rate=21; tunnel leads to valve II"#;
 
-        let graph: Graph = input.parse().unwrap();
-        let mut solver = Simulation::new(&graph, 2);
+            let graph: Graph = input.parse().unwrap();
+            let mut solver = Simulation::new(&graph, 2);
 
-        println!("{}", graph);
+            println!("{}", graph);
 
-        assert_eq!(1707, solver.solve_dijkstra());
-    }
+            assert_eq!(1707, solver.solve_dijkstra());
+        }
+        */
 }

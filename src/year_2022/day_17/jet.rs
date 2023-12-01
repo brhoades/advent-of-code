@@ -25,7 +25,7 @@ impl FromStr for JetPattern {
 
     fn from_str(s: &str) -> Result<Self> {
         s.split("")
-            .filter(|s| *s != "")
+            .filter(|s| !s.is_empty())
             .map(FromStr::from_str)
             .collect()
     }
@@ -62,7 +62,7 @@ impl FromStr for JetDirection {
 mod tests {
     use super::*;
 
-    const EXAMPLE_ONE: &'static str = ">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>";
+    const EXAMPLE_ONE: &str = ">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>";
 
     #[test]
     fn test_parse_wind() -> Result<()> {
