@@ -175,7 +175,7 @@ impl<T: fmt::Display> fmt::Display for Map<T> {
             for x in 0..self.width {
                 write!(f, "{}", self.get(x, y).unwrap().inner)?;
             }
-            write!(f, "\n")?;
+            writeln!(f)?;
         }
 
         Ok(())

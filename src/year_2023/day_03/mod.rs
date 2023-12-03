@@ -191,7 +191,7 @@ mod tests {
     ...$.*....
     .664.598..";
 
-    // successful map parsing should roundtip its display output
+    // successful map parsing should roundtrip its display output
     #[test]
     fn test_map_parse() {
         let map = parse_map(EXAMPLE_INPUT_1).unwrap();
