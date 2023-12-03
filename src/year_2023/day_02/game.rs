@@ -152,12 +152,14 @@ mod tests {
 
     #[test]
     fn test_min_cubes() {
-        let game = "Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green"
-            .parse()?
+        let game: Game = "Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green"
+            .parse()
             .unwrap();
         let expected: HashMap<CubeKind, usize> = [("red", 4), ("blue", 6), ("green", 2)]
             .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
             .collect();
+        let expected: HashMap<&CubeKind, usize> = expected.iter().map(|(k, v)| (k, *v)).collect();
 
         assert_eq!(expected, game.minimum_cubes());
     }
