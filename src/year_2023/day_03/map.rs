@@ -24,6 +24,29 @@ pub struct Neighbors<T> {
     pub right: Option<Node<T>>,
     pub down: Option<Node<T>>,
     pub left: Option<Node<T>>,
+
+    pub upright: Option<Node<T>>,
+    pub downright: Option<Node<T>>,
+    pub downleft: Option<Node<T>>,
+    pub upleft: Option<Node<T>>,
+}
+
+impl<T> Neighbors<T> {
+    // returns an iteterator over present neighbors
+    pub fn iter(&self) -> impl Iterator<Item = &Node<T>> {
+        vec![
+            &self.up,
+            &self.right,
+            &self.down,
+            &self.left,
+            &self.upright,
+            &self.downright,
+            &self.downleft,
+            &self.upleft,
+        ]
+        .into_iter()
+        .filter_map(|n| n.as_ref())
+    }
 }
 
 impl<T> Node<T> {
@@ -39,35 +62,19 @@ impl<T> Node<T> {
 // custom impl to avoid recursively debugging every node in the map
 impl<T: fmt::Debug> fmt::Debug for Neighbors<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let fmt_node = |n: &Option<Node<T>>| {
+            n.as_ref()
+                .map(|n| format!("({}, {})", n.0.borrow().x, n.0.borrow().y))
+        };
         f.debug_struct("Neighbors")
-            .field(
-                "up",
-                &self
-                    .up
-                    .as_ref()
-                    .map(|n| format!("({}, {})", n.0.borrow().x, n.0.borrow().y)),
-            )
-            .field(
-                "right",
-                &self
-                    .right
-                    .as_ref()
-                    .map(|n| format!("({}, {})", n.0.borrow().x, n.0.borrow().y)),
-            )
-            .field(
-                "down",
-                &self
-                    .down
-                    .as_ref()
-                    .map(|n| format!("({}, {})", n.0.borrow().x, n.0.borrow().y)),
-            )
-            .field(
-                "left",
-                &self
-                    .left
-                    .as_ref()
-                    .map(|n| format!("({}, {})", n.0.borrow().x, n.0.borrow().y)),
-            )
+            .field("up", &fmt_node(&self.up))
+            .field("right", &fmt_node(&self.right))
+            .field("down", &fmt_node(&self.down))
+            .field("left", &fmt_node(&self.left))
+            .field("upright", &fmt_node(&self.upright))
+            .field("downright", &fmt_node(&self.downright))
+            .field("downleft", &fmt_node(&self.downleft))
+            .field("upleft", &fmt_node(&self.upleft))
             .finish()
     }
 }
@@ -87,7 +94,7 @@ impl<T> NodeData<T> {
     }
 
     // gets a reference to the interior value
-    pub fn value(&mut self) -> &T {
+    pub fn value(&self) -> &T {
         &self.inner
     }
 }
@@ -143,10 +150,35 @@ impl<T: Default + Clone> Map<T> {
                 node.neighbors.right = ret.get_node(x + 1, y).ok().cloned();
                 // up
                 node.neighbors.up = ret.get_node(x, y + 1).ok().cloned();
+
+                node.neighbors.upright = ret.get_node(x + 1, y + 1).ok().cloned();
+                if y > 0 {
+                    node.neighbors.downright = ret.get_node(x + 1, y - 1).ok().cloned();
+                    if x > 0 {
+                        node.neighbors.downleft = ret.get_node(x - 1, y - 1).ok().cloned();
+                    }
+                }
+                if x > 0 {
+                    node.neighbors.upleft = ret.get_node(x - 1, y + 1).ok().cloned();
+                }
             }
         }
 
         ret
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for Map<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // we're stored with y=0 first, walk numbers instead of using iter
+        for y in (0..self.height).rev() {
+            for x in 0..self.width {
+                write!(f, "{}", self.get(x, y).unwrap().inner)?;
+            }
+            write!(f, "\n")?;
+        }
+
+        Ok(())
     }
 }
 
