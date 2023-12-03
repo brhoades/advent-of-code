@@ -13,6 +13,7 @@ log = "0.4"
 pretty_env_logger = "0.4"
 once_cell = "1.18.0"
 nom = "7.1.3"
+thiserror = "1.0.50"
 
 [dev-dependencies]
 quickcheck = "1"
