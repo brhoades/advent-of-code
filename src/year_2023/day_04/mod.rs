@@ -84,7 +84,7 @@ impl ScratchCard {
 impl FromStr for ScratchCard {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
-        let parts = s.split(":").collect::<Vec<_>>();
+        let parts = s.split(':').collect::<Vec<_>>();
 
         let &[number, scorecard] = parts.as_slice() else {
             bail!("scratchcard didn't appear split by colon")
@@ -98,13 +98,13 @@ impl FromStr for ScratchCard {
 
         let winning_numbers: Vec<u64> = winning_numbers
             .trim()
-            .split_terminator(" ")
+            .split_terminator(' ')
             .filter(|n| !n.is_empty())
             .map(|n| Ok(n.parse()?))
             .collect::<Result<_>>()?;
         let scratched_numbers: Vec<u64> = scratched_numbers
             .trim()
-            .split_terminator(" ")
+            .split_terminator(' ')
             .filter(|n| !n.is_empty())
             .map(|n| Ok(n.parse()?))
             .collect::<Result<_>>()?;
