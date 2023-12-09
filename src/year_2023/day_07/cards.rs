@@ -1,8 +1,10 @@
 use advent_of_code::prelude::*;
+use std::cmp::Ordering;
 use std::{collections::HashMap, fmt};
 
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Card {
+    Joker,
     Two,
     Three,
     Four,
@@ -25,6 +27,7 @@ impl FromStr for Card {
         use Card::*;
 
         Ok(match s {
+            "*" => Joker,
             "2" => Two,
             "3" => Three,
             "4" => Four,
@@ -48,6 +51,7 @@ impl fmt::Display for Card {
         use Card::*;
 
         let s = match self {
+            Joker => "*",
             Two => "2",
             Three => "3",
             Four => "4",
@@ -78,6 +82,12 @@ impl std::ops::Deref for Hand {
     }
 }
 
+impl std::ops::DerefMut for Hand {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl FromStr for Hand {
     type Err = Error;
 
@@ -90,7 +100,7 @@ impl FromStr for Hand {
                 .try_into()
                 .map_err(|v: Vec<_>| {
                     anyhow!(
-                        "invalid hand size {}? failed to convert to array: {v:?}",
+                        "invalid hand size {}; failed to convert to array: {v:?}",
                         v.len()
                     )
                 })?,
@@ -98,24 +108,68 @@ impl FromStr for Hand {
     }
 }
 
+impl PartialOrd for Hand {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Hand {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let l = self.rank();
+        let r = other.rank();
+
+        let cmp = l.cmp(&r);
+        if cmp != Ordering::Equal {
+            return cmp;
+        }
+        self.iter()
+            .zip(other.iter())
+            .map(|(l, r)| l.cmp(r))
+            .find(|c| *c != Ordering::Equal)
+            .unwrap_or(Ordering::Equal)
+    }
+}
+
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
 pub enum Rank {
-    HighCard(Card),
-    OnePair(Card),
-    TwoPair(Card, Card), // highest pair first
-    ThreeOfAKind(Card),
-    FullHouse(Card, Card), // triplet comes first
-    FourOfAKind(Card),
-    FiveOfAKind(Card),
+    HighCard,
+    OnePair,
+    TwoPair,
+    ThreeOfAKind,
+    FullHouse,
+    FourOfAKind,
+    FiveOfAKind,
 }
 
 impl Hand {
-    // returns counts ordered by usize
+    // returns counts of cards for determining hand class. Jokers become the best
+    // card possible.
     pub fn counts(&self) -> HashMap<Card, usize> {
-        self.iter().fold(HashMap::with_capacity(5), |mut acc, c| {
-            acc.entry(*c).and_modify(|v| *v = *v + 1).or_insert(1);
+        let mut counts = self.iter().fold(HashMap::with_capacity(5), |mut acc, c| {
+            acc.entry(*c).and_modify(|v| *v += 1).or_insert(1);
             acc
-        })
+        });
+
+        // with jokers, our "best" card gets all of them. Otherwise, they become aces.
+        if let Some(cnt) = counts.remove(&Card::Joker) {
+            let most = counts.values().max();
+            if most.is_none() {
+                counts.insert(Card::Ace, cnt);
+                return counts;
+            }
+
+            let most = most.unwrap();
+            let best_match = counts
+                .iter()
+                .filter(|(_, cnt)| *cnt == most)
+                .max_by_key(|(card, _)| *card)
+                .unwrap();
+
+            counts.insert(*best_match.0, most + cnt);
+        }
+
+        counts
     }
 }
 
@@ -130,39 +184,17 @@ impl Ranked for Hand {
         let counts = self.counts();
 
         match counts.len() {
-            1 => FiveOfAKind(counts.into_iter().next().unwrap().0),
-            2 if counts.iter().any(|(_, cnt)| *cnt == 2) => FullHouse(
-                take_card_with_count(&counts, 3).unwrap(),
-                take_card_with_count(&counts, 2).unwrap(),
-            ),
-            2 => FourOfAKind(take_card_with_count(&counts, 4).unwrap()),
-            3 if counts.iter().any(|(_, cnt)| *cnt == 3) => {
-                ThreeOfAKind(take_card_with_count(&counts, 3).unwrap())
-            }
-            3 => {
-                let mut pairs = counts
-                    .into_iter()
-                    .filter_map(|(card, cnt)| if cnt == 2 { Some(card) } else { None })
-                    .collect::<Vec<_>>();
-                // dance a bit to get the highest pair first (for easier scoring)
-                pairs.sort();
-
-                TwoPair(pairs.pop().unwrap(), pairs.pop().unwrap())
-            }
-            // // Two pair: Z, X = 2, Y = 2 OR three of a kind: Z, X, Y = 3
-            4 => OnePair(take_card_with_count(&counts, 2).unwrap()),
-            5 => HighCard(self.iter().max().cloned().unwrap()),
+            1 => FiveOfAKind,
+            2 if counts.iter().any(|(_, cnt)| *cnt == 2) => FullHouse,
+            2 => FourOfAKind,
+            3 if counts.iter().any(|(_, cnt)| *cnt == 3) => ThreeOfAKind,
+            3 => TwoPair,
+            4 => OnePair,
+            5 => HighCard,
             6..=usize::MAX => unreachable!("unreachable hand rank {counts:?}"),
             _ => todo!(),
         }
     }
-}
-
-fn take_card_with_count(counts: &HashMap<Card, usize>, cnt: usize) -> Option<Card> {
-    counts
-        .iter()
-        .find_map(|(card, c)| if *c == cnt { Some(card) } else { None })
-        .copied()
 }
 
 #[cfg(test)]
@@ -193,26 +225,25 @@ mod test {
 
     #[test]
     fn test_rank() {
-        use Card::*;
         use Rank::*;
 
         let cases = vec![
-            ("23456", HighCard(Six)),
-            ("98765", HighCard(Nine)),
-            ("432AK", HighCard(Ace)),
-            ("22AKQ", OnePair(Two)),
-            ("A2AKQ", OnePair(Ace)),
-            ("34QJQ", OnePair(Queen)),
-            ("J4QJQ", TwoPair(Queen, Jack)),
-            ("242JJ", TwoPair(Jack, Two)),
-            ("32JJJ", ThreeOfAKind(Jack)),
-            ("2Q2K2", ThreeOfAKind(Two)),
-            ("33324", ThreeOfAKind(Three)),
-            ("KKKJJ", FullHouse(King, Jack)),
-            ("Q2Q2Q", FullHouse(Queen, Two)),
-            ("3T3T3", FullHouse(Three, Ten)),
-            ("33333", FiveOfAKind(Three)),
-            ("TTTTT", FiveOfAKind(Ten)),
+            ("23456", HighCard),
+            ("98765", HighCard),
+            ("432AK", HighCard),
+            ("22AKQ", OnePair),
+            ("A2AKQ", OnePair),
+            ("34QJQ", OnePair),
+            ("J4QJQ", TwoPair),
+            ("242JJ", TwoPair),
+            ("32JJJ", ThreeOfAKind),
+            ("2Q2K2", ThreeOfAKind),
+            ("33324", ThreeOfAKind),
+            ("KKKJJ", FullHouse),
+            ("Q2Q2Q", FullHouse),
+            ("3T3T3", FullHouse),
+            ("33333", FiveOfAKind),
+            ("TTTTT", FiveOfAKind),
         ];
 
         for (input, expected) in cases {
@@ -225,33 +256,50 @@ mod test {
 
     #[test]
     fn test_cmp() {
-        use Card::*;
-        use Rank::*;
-
-        // (l, r, l_wins)
         let cases = vec![
-            ("23456", "234QA", false),
-            ("23456", "23452", true),
-            ("98765", "87654", true),
+            ("23456", "234QA", Ordering::Less),
+            ("AKQ34", "AKQ23", Ordering::Greater),
+            ("98765", "87654", Ordering::Greater),
             // 1 pair
-            ("22AKQ", "22A3Q", true),
-            ("224K3", "22AQQ", false),
+            ("22AKQ", "22A3Q", Ordering::Greater),
+            ("224K3", "22AQQ", Ordering::Less),
             // 2 pair
-            ("J4QJQ", "4QJQJ", true),
-            ("J4QJQ", "2233Q", true),
+            ("J4QJQ", "4QJQJ", Ordering::Greater),
+            ("J4QJQ", "2233Q", Ordering::Greater),
             // mixed
-            ("AAQQQ", "AA234", true),
-            ("AAQQQ", "AAAAA", true),
-            ("22222", "AT234", true),
+            ("AAQQQ", "AA234", Ordering::Greater),
+            ("AAQQQ", "AAAAA", Ordering::Less),
+            ("22222", "AT234", Ordering::Greater),
+            ("A23QJ", "AAJJQ", Ordering::Less),
+            ("AAAAA", "AAAAA", Ordering::Equal),
         ]
         .into_iter()
-        .map(|(l, r, e)| -> (Hand, Hand, bool) { (l.parse().unwrap(), r.parse().unwrap(), e) });
+        .map(|(l, r, e)| -> (Hand, Hand, Ordering) { (l.parse().unwrap(), r.parse().unwrap(), e) });
 
         for (l, r, expected) in cases {
             assert_eq!(
                 expected,
-                l.rank() > r.rank(),
-                "expected {expected} in {l:?} > {r:?}"
+                l.cmp(&r),
+                "expected {expected:?} in {l:?} <=> {r:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_cmp_jokers() {
+        let cases = vec![
+            ("*****", "*****", Ordering::Equal),
+            ("K****", "Q****", Ordering::Greater),
+            ("224**", "2T***", Ordering::Less),
+        ]
+        .into_iter()
+        .map(|(l, r, e)| -> (Hand, Hand, Ordering) { (l.parse().unwrap(), r.parse().unwrap(), e) });
+
+        for (l, r, expected) in cases {
+            assert_eq!(
+                expected,
+                l.cmp(&r),
+                "expected {expected:?} in {l:?} <=> {r:?}"
             );
         }
     }
