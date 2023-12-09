@@ -36,9 +36,7 @@ impl FromStr for Almanac {
                         .split(' ')
                         .map(FromStr::from_str)
                         .collect::<Result<_, _>>()
-                        .with_context(|| {
-                            format!("failed to parse seeds in '{}'", &line[7..])
-                        })?;
+                        .with_context(|| format!("failed to parse seeds in '{}'", &line[7..]))?;
                     state = State::Header;
                 }
                 State::Header if line.is_empty() => (),
