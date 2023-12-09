@@ -128,8 +128,6 @@ mod tests {
 
     #[test]
     fn test_simulation_results() {
-        let records: Records = EXAMPLE_INPUT.parse().unwrap();
-
         assert_eq!(
             vec![
                 (0, 0),
