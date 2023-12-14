@@ -1,8 +1,6 @@
-mod map;
 use std::collections::{HashMap, HashSet};
 
-use advent_of_code::prelude::*;
-use map::*;
+use advent_of_code::{neighbor_map::*, prelude::*};
 
 pub fn run(input: String) -> Result<()> {
     let map = parse_map(&input)?;
