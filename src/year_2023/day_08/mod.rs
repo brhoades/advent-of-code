@@ -110,8 +110,5 @@ pub fn traverse_parallel(map: &Map, dirs: &mut Directions, start: Vec<&str>) -> 
 
     println!("cycles: {cycles:?}");
 
-    Ok(cycles
-        .into_iter()
-        .reduce(|acc, n| num::integer::lcm(acc, n))
-        .unwrap())
+    Ok(cycles.into_iter().reduce(num::integer::lcm).unwrap())
 }

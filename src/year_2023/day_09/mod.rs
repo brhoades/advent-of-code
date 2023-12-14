@@ -1,5 +1,4 @@
 use advent_of_code::prelude::*;
-use tokio::io::DuplexStream;
 
 pub fn run(input: String) -> Result<()> {
     let lines = parse(&input)?;
@@ -59,14 +58,14 @@ fn extrapolate_backwards_sum(lines: &Vec<Vec<i64>>) -> i64 {
                 break;
             }
 
-            extrapolated_lines.push(extrapolate_next(&line).collect());
+            extrapolated_lines.push(extrapolate_next(line).collect());
         }
 
         // now walk it backwards, summing and retaining the last value interpolated
         let mut rewrite_lines = vec![];
         let mut last_interpolated = 0; // we always interpolate a zero first
         for line in extrapolated_lines.iter().rev().skip(1) {
-            last_interpolated = line.get(0).unwrap() - last_interpolated;
+            last_interpolated = line.first().unwrap() - last_interpolated;
             rewrite_lines.push(format!(
                 "{last_interpolated} {}",
                 line.iter()
@@ -85,7 +84,7 @@ fn extrapolate_backwards_sum(lines: &Vec<Vec<i64>>) -> i64 {
     sum
 }
 
-fn extrapolate_next(nums: &Vec<i64>) -> impl Iterator<Item = i64> + '_ {
+fn extrapolate_next(nums: &[i64]) -> impl Iterator<Item = i64> + '_ {
     nums.iter()
         .zip(nums.iter().skip(1))
         .map(|(cur, next)| next - cur)
