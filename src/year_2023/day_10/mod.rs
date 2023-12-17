@@ -69,15 +69,10 @@ impl DepthFirstVisited {
         if visited.get(&current).is_some_and(|c| *c < distance) {
             return;
         }
-        debug!("({}, {}) @ {}", current.0, current.1, distance);
         visited.insert(current, distance);
 
         let node = map.get(current.0, current.1).unwrap().to_owned();
         let neighbors = node.main_loop_neighbors();
-        debug!(
-            "({}, {}) with neighbors: {:?}",
-            current.0, current.1, neighbors
-        );
 
         for n in neighbors.iter() {
             let n = n.borrow();
@@ -240,29 +235,19 @@ impl Map {
         for rng in [0..point.0, (point.0 + 1)..self.width()] {
             let mut intersected = false;
             let mut sum: i32 = 0;
-            println!("rng: {rng:?}");
             for x in rng {
                 match draw_dir.get(&(x, point.1)) {
                     Some(_) => sum += 1,
-                    // Some(Dir::Down) => sum -= 1,
                     _ => continue,
                 }
                 intersected = true;
             }
-            /*
-            if last_sum.is_some_and(|v| v == sum) {
-                println!("{point:?} last sum {last_sum:?} was the same as this sum {sum}");
-                return false;
-            }
-            */
 
             if !intersected {
-                println!("{point:?} did not intersect");
                 return false;
             }
 
             if sum.abs() % 2 == 0 && last_sum.is_some_and(|v| v % 2 == 0) {
-                println!("{point:?} had even sum: {sum} and so did last sum {last_sum:?}");
                 return false;
             }
             last_sum = Some(sum);
