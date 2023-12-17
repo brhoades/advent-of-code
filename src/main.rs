@@ -61,6 +61,7 @@ fn main() -> Result<()> {
         (2023, 7) => year_2023::day_07::run(input),
         (2023, 8) => year_2023::day_08::run(input),
         (2023, 9) => year_2023::day_09::run(input),
+        (2023, 10) => year_2023::day_10::run(input),
         (2023, _) | (2022, _) => bail!("unknown problem number {}", opt.problem),
         (_, _) => bail!("unkown year {}", opt.year),
     }
