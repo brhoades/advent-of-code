@@ -47,6 +47,10 @@ impl<T> Neighbors<T> {
         .into_iter()
         .filter_map(|n| n.as_ref())
     }
+
+    pub fn len(&self) -> usize {
+        self.iter().count()
+    }
 }
 
 impl<T> Node<T> {
@@ -84,7 +88,7 @@ impl<T> NodeData<T> {
         &self.neighbors
     }
 
-    fn neighbors_mut(&mut self) -> &mut Neighbors<T> {
+    pub fn neighbors_mut(&mut self) -> &mut Neighbors<T> {
         &mut self.neighbors
     }
 
@@ -96,6 +100,14 @@ impl<T> NodeData<T> {
     // gets a reference to the interior value
     pub fn value(&self) -> &T {
         &self.inner
+    }
+
+    pub fn x(&self) -> usize {
+        self.x
+    }
+
+    pub fn y(&self) -> usize {
+        self.y
     }
 }
 
@@ -211,6 +223,25 @@ impl<T> Map<T> {
                 .enumerate()
                 .map(move |(x, node)| ((x, y), node.borrow()))
         })
+    }
+
+    // iter_mut is like iter, but walks a mutable reference of the inner node data.
+    pub fn iter_mut(
+        &self,
+    ) -> impl Iterator<Item = ((usize, usize), cell::RefMut<'_, NodeData<T>>)> {
+        self.tiles.iter().enumerate().flat_map(|(y, row)| {
+            row.iter()
+                .enumerate()
+                .map(move |(x, node)| ((x, y), node.borrow_mut()))
+        })
+    }
+
+    // iterates over the nodes in
+    pub fn iter_nodes(&self) -> impl Iterator<Item = ((usize, usize), &Node<T>)> {
+        self.tiles
+            .iter()
+            .enumerate()
+            .flat_map(|(y, row)| row.iter().enumerate().map(move |(x, node)| ((x, y), node)))
     }
 
     // return the interior refcell borrowed for easier API use. Node is transparent
