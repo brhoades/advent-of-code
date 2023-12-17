@@ -61,7 +61,7 @@ impl FurthestPoint for DepthFirstVisited {
 impl DepthFirstVisited {
     fn distance_map_inner(
         // coords => minimum distance to reach
-        mut visited: &mut DistanceMap,
+        visited: &mut DistanceMap,
         map: &Map,
         current: Coords,
         distance: usize,
@@ -82,7 +82,7 @@ impl DepthFirstVisited {
         for n in neighbors.iter() {
             let n = n.borrow();
 
-            DepthFirstVisited::distance_map_inner(&mut visited, &map, (n.x(), n.y()), distance + 1);
+            DepthFirstVisited::distance_map_inner(visited, map, (n.x(), n.y()), distance + 1);
         }
     }
 }
@@ -112,14 +112,14 @@ impl InteriorSpace for Map {
                 Tile::Vertical => (),
                 _ => continue,
             };
-            faces.insert(v.clone());
+            faces.insert(v);
         }
 
         // The start won't be set. When finished, carry last into all
         // None values in the direction map.
         let faces = MainPipeLoopFaces(faces);
 
-        let mut tkmap = DepthFirstVisited::distance_map(&self)
+        let mut tkmap = DepthFirstVisited::distance_map(self)
             .iter()
             .map(|(coord, _)| {
                 (
@@ -134,7 +134,7 @@ impl InteriorSpace for Map {
                 continue;
             }
 
-            let interior = self.is_point_in_polygon(&faces, coords.clone());
+            let interior = self.is_point_in_polygon(&faces, coords);
             tkmap.insert(
                 coords,
                 if interior {
@@ -195,7 +195,7 @@ impl std::fmt::Display for MainPipeLoopFaces {
                     }
                 )?;
             }
-            write!(f, "\n")?;
+            writeln!(f)?;
         }
 
         Ok(())

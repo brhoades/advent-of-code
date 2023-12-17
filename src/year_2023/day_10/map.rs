@@ -119,12 +119,11 @@ impl FromStr for Map {
             .into_iter()
             .rev()
             .enumerate()
-            .map(|(y, row)| {
+            .flat_map(|(y, row)| {
                 row.into_iter()
                     .enumerate()
-                    .map(move |(x, cell)| ((x, y.clone()), cell))
-            })
-            .flatten();
+                    .map(move |(x, cell)| ((x, y), cell))
+            });
         for (((xd, yd), mut dest), ((xs, ys), src)) in m.iter_mut().zip(data_source) {
             if xd != xs {
                 bail!("when iterating the source data, expected x={xs} to be x={xd}; is the dataset square?");
@@ -258,7 +257,7 @@ impl fmt::Display for DistanceMap {
                     write!(f, ".")?;
                 }
             }
-            write!(f, "\n")?;
+            writeln!(f)?;
         }
         Ok(())
     }
@@ -327,7 +326,7 @@ impl fmt::Display for TileKindMap {
                     unreachable!("incomplete tile map");
                 }
             }
-            write!(f, "\n")?;
+            writeln!(f)?;
         }
 
         Ok(())

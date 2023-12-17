@@ -112,7 +112,7 @@ mod test {
                 v,
                 a.headers
                     .get(k)
-                    .expect(&format!("failed to get {k} in headers"))
+                    .unwrap_or_else(|| panic!("failed to get {k} in headers"))
             );
         }
     }

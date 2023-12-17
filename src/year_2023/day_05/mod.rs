@@ -221,7 +221,7 @@ mod tests {
     #[test]
     fn test_split_range() {
         let testrange = 0..25;
-        let tofind = testrange.clone().into_iter().collect::<HashSet<_>>();
+        let tofind = testrange.clone().collect::<HashSet<_>>();
 
         for size in 1..25 {
             let mut found = tofind.clone();

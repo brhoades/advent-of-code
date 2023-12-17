@@ -215,7 +215,7 @@ mod tests {
             .lines()
             .map(|l| {
                 extract_needle(l, &FORWARD_NEEDLES, 5)
-                    .expect(&format!("expected to find a needle in {l}"))
+                    .unwrap_or_else(|| panic!("expected to find a needle in {l}"))
             })
             .map(|d| NEEDLE_VALUE_LOOKUP.get(d).unwrap())
             .cloned()
@@ -225,7 +225,7 @@ mod tests {
             .map(|l| l.chars().rev().collect::<String>())
             .map(|l: String| {
                 extract_needle(&l, &BACKWARD_NEEDLES, 5)
-                    .expect(&format!("expected to find a needle in {l}"))
+                    .unwrap_or_else(|| panic!("expected to find a needle in {l}"))
             })
             .map(|d| NEEDLE_VALUE_LOOKUP.get(d).unwrap())
             .cloned()

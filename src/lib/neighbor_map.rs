@@ -51,6 +51,10 @@ impl<T> Neighbors<T> {
     pub fn len(&self) -> usize {
         self.iter().count()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl<T> Node<T> {
