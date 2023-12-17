@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use super::prelude::*;
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct Coordinate<T> {
     pub x: T,
     pub y: T,
