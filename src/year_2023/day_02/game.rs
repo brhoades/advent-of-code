@@ -1,27 +1,9 @@
 use advent_of_code::prelude::*;
-use std::{
-    collections::HashMap,
-    ops::{Deref, DerefMut},
-    str::FromStr,
-};
+use std::{collections::HashMap, str::FromStr};
 
 // a set of games. can be parsed from a new line delimited string.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut)]
 pub struct Games(Vec<Game>);
-
-impl Deref for Games {
-    type Target = Vec<Game>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Games {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
 
 impl FromStr for Games {
     type Err = Error;

@@ -71,22 +71,8 @@ impl fmt::Display for Card {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Deref, DerefMut)]
 pub struct Hand([Card; 5]);
-
-impl std::ops::Deref for Hand {
-    type Target = [Card; 5];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for Hand {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
 
 impl FromStr for Hand {
     type Err = Error;

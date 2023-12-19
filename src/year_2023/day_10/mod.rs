@@ -1,12 +1,8 @@
 mod map;
 
-use std::{
-    collections::HashSet,
-    ops::{Deref, DerefMut},
-};
-
 use advent_of_code::prelude::*;
 use map::{Coords, DistanceMap, Map, Steps, TileKind, TileKindMap};
+use std::collections::HashSet;
 
 use crate::year_2023::day_10::map::MainLoopNeighbors;
 
@@ -148,21 +144,8 @@ impl InteriorSpace for Map {
 type MainPipeLoop = Vec<Coords>;
 
 // the vertices making up the faces" on the main pipe loop, like a polygon.
+#[derive(Deref, DerefMut)]
 struct MainPipeLoopFaces(HashSet<Coords>);
-
-impl Deref for MainPipeLoopFaces {
-    type Target = HashSet<Coords>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for MainPipeLoopFaces {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
 
 impl std::fmt::Display for MainPipeLoopFaces {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

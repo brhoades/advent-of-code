@@ -2,7 +2,6 @@
 use std::cmp::{max, min};
 use std::fmt;
 use std::iter::repeat;
-use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
 pub use advent_of_code::{coord::Coordinate as BaseCoordinate, map::Map as BaseMap, prelude::*};
@@ -19,7 +18,7 @@ pub enum Tile {
 }
 use Tile::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deref, DerefMut)]
 pub struct Map {
     data: BaseMap<Tile>,
 }
@@ -181,20 +180,6 @@ impl FromStr for Map {
         }
 
         Ok(m)
-    }
-}
-
-impl Deref for Map {
-    type Target = BaseMap<Tile>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.data
-    }
-}
-
-impl DerefMut for Map {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.data
     }
 }
 

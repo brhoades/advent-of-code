@@ -14,9 +14,10 @@ pub struct Fork {
     pub right: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deref, DerefMut)]
 pub struct Map(HashMap<String, Fork>);
 
+#[derive(Deref, DerefMut)]
 pub struct Directions(Box<dyn Iterator<Item = Dir>>);
 
 impl FromStr for Dir {
@@ -28,20 +29,6 @@ impl FromStr for Dir {
             "R" => Dir::Right,
             _ => bail!("unknown Dir {s}"),
         })
-    }
-}
-
-impl std::ops::Deref for Directions {
-    type Target = Box<dyn Iterator<Item = Dir>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for Directions {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
     }
 }
 
@@ -57,14 +44,6 @@ impl FromStr for Directions {
                 .into_iter()
                 .cycle(),
         )))
-    }
-}
-
-impl std::ops::Deref for Map {
-    type Target = HashMap<String, Fork>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 

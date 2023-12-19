@@ -1,9 +1,8 @@
 use std::fmt;
 use std::io::{self, Write};
-use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
-use advent_of_code::map::Map as BaseMap;
+use advent_of_code::{map::Map as BaseMap, prelude::*};
 use anyhow::{bail, Error, Result};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -37,26 +36,12 @@ impl fmt::Display for Tile {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deref, DerefMut)]
 pub struct Map<T>(BaseMap<T>);
 
 impl<T: Default + Clone> Map<T> {
     pub fn new_dense(width: usize, height: usize) -> Self {
         Self(BaseMap::new_dense(width, height))
-    }
-}
-
-impl<T> Deref for Map<T> {
-    type Target = BaseMap<T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<T> DerefMut for Map<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
     }
 }
 

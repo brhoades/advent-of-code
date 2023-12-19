@@ -2,31 +2,13 @@ use advent_of_code::{
     neighbor_map::{Map as NMap, Neighbors, NodeData},
     prelude::*,
 };
-use std::{
-    collections::HashMap,
-    fmt,
-    ops::{Deref, DerefMut},
-};
+use std::{collections::HashMap, fmt};
 
 pub type Steps = usize;
 pub type Coords = (usize, usize);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deref, DerefMut)]
 pub struct Map(NMap<Tile>);
-
-impl Deref for Map {
-    type Target = NMap<Tile>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Map {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
 
 impl fmt::Display for Map {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -229,7 +211,7 @@ pub struct DistanceMap {
     pub height: usize,
 }
 
-impl Deref for DistanceMap {
+impl std::ops::Deref for DistanceMap {
     type Target = HashMap<Coords, usize>;
 
     fn deref(&self) -> &Self::Target {
@@ -237,7 +219,7 @@ impl Deref for DistanceMap {
     }
 }
 
-impl DerefMut for DistanceMap {
+impl std::ops::DerefMut for DistanceMap {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.data
     }
@@ -278,21 +260,8 @@ impl fmt::Display for TileKind {
     }
 }
 
+#[derive(Deref, DerefMut)]
 pub struct TileKindMap(HashMap<Coords, TileKind>);
-
-impl Deref for TileKindMap {
-    type Target = HashMap<Coords, TileKind>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for TileKindMap {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
 
 impl FromIterator<(Coords, TileKind)> for TileKindMap {
     fn from_iter<T: IntoIterator<Item = (Coords, TileKind)>>(iter: T) -> Self {
