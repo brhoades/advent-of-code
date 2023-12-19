@@ -40,13 +40,11 @@ impl ShortestPath for Brute {
                     // go left
                     (from.x - 1, from.y)
                 }
+            } else if dy > 0 {
+                // go up
+                (from.x, from.y + 1)
             } else {
-                if dy > 0 {
-                    // go up
-                    (from.x, from.y + 1)
-                } else {
-                    (from.x, from.y - 1)
-                }
+                (from.x, from.y - 1)
             };
             from = Coord { x: new.0, y: new.1 };
             points.push(from.clone());
@@ -88,8 +86,8 @@ trait L1Norm {
 
 impl L1Norm for Coord {
     fn l1_norm(&self, other: &Self) -> usize {
-        ((other.x as isize - self.x as isize).unsigned_abs()
-            + (other.y as isize - self.y as isize).unsigned_abs()) as usize
+        (other.x as isize - self.x as isize).unsigned_abs()
+            + (other.y as isize - self.y as isize).unsigned_abs()
     }
 }
 

@@ -115,15 +115,11 @@ impl FromStr for Map {
         let m = NMap::<Tile>::new(data.get(0).unwrap().len(), data.len());
 
         // populate m by zipping it together with ourself
-        let data_source = data
-            .into_iter()
-            .rev()
-            .enumerate()
-            .flat_map(|(y, row)| {
-                row.into_iter()
-                    .enumerate()
-                    .map(move |(x, cell)| ((x, y), cell))
-            });
+        let data_source = data.into_iter().rev().enumerate().flat_map(|(y, row)| {
+            row.into_iter()
+                .enumerate()
+                .map(move |(x, cell)| ((x, y), cell))
+        });
         for (((xd, yd), mut dest), ((xs, ys), src)) in m.iter_mut().zip(data_source) {
             if xd != xs {
                 bail!("when iterating the source data, expected x={xs} to be x={xd}; is the dataset square?");

@@ -37,7 +37,7 @@ impl Map {
             // snapshot
             let galaxies = self.galaxies().map(|g| g.0).collect::<Vec<_>>();
             for g in galaxies.iter().filter(|g| g.y > y) {
-                if !self.remove(&g) {
+                if !self.remove(g) {
                     unreachable!("failed to get tile at {g:?}:\n{self}");
                 }
 
@@ -62,7 +62,7 @@ impl Map {
             // snapshot
             let galaxies = self.galaxies().map(|g| g.0).collect::<Vec<_>>();
             for g in galaxies.iter().filter(|g| g.x > x) {
-                if !self.remove(&g) {
+                if !self.remove(g) {
                     unreachable!("failed to get tile at {g:?}:\n{self}");
                 }
                 self.insert(Coord {
@@ -77,7 +77,7 @@ impl Map {
     #[cfg(test)]
     // returns a Map which dislays with the galaxies numbered
     pub fn numbered(&self) -> NumberedMap<'_> {
-        NumberedMap(&self)
+        NumberedMap(self)
     }
 }
 
@@ -140,8 +140,7 @@ impl FromStr for Map {
         let s = s.trim();
         let width = s
             .lines()
-            .filter(|l| !l.is_empty())
-            .next()
+            .find(|l| !l.is_empty())
             .map(|l| l.trim().split("").filter(|c| !c.is_empty()).count())
             .unwrap_or_default();
         let height = s.lines().filter(|l| !l.is_empty()).count();
@@ -149,7 +148,7 @@ impl FromStr for Map {
             .trim()
             .lines()
             .enumerate()
-            .map(|(y, l)| {
+            .flat_map(|(y, l)| {
                 l.trim()
                     .split("")
                     .filter(|v| !v.is_empty())
@@ -157,7 +156,6 @@ impl FromStr for Map {
                     .filter(|(_, v)| *v == "#")
                     .map(move |(x, _)| Coord { x, y })
             })
-            .flatten()
             .collect();
 
         Ok(Self {
