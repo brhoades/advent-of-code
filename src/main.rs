@@ -1,10 +1,8 @@
-pub mod year_2022;
-pub mod year_2023;
+use advent_of_code::{prelude::*, year_2022, year_2023};
 
 use std::fs::read_to_string;
 use std::path::PathBuf;
 
-use anyhow::{bail, Result};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
