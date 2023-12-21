@@ -1,5 +1,5 @@
-mod year_2022;
-mod year_2023;
+pub mod year_2022;
+pub mod year_2023;
 
 use std::fs::read_to_string;
 use std::path::PathBuf;
@@ -63,6 +63,7 @@ fn main() -> Result<()> {
         (2023, 9) => year_2023::day_09::run(input),
         (2023, 10) => year_2023::day_10::run(input),
         (2023, 11) => year_2023::day_11::run(input),
+        (2023, 12) => year_2023::day_12::run(input),
         (2023, _) | (2022, _) => bail!("unknown problem number {}", opt.problem),
         (_, _) => bail!("unkown year {}", opt.year),
     }
