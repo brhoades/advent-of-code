@@ -9,6 +9,18 @@ pub enum Tile {
     Unknown,
 }
 
+impl fmt::Display for Tile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Tile::*;
+
+        match self {
+            Broken => write!(f, "#"),
+            Spring => write!(f, "."),
+            Unknown => write!(f, "?"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RowSpec {
     pub tiles: Vec<Tile>,
@@ -17,14 +29,8 @@ pub struct RowSpec {
 
 impl fmt::Display for RowSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Tile::*;
-
         for t in &self.tiles {
-            match t {
-                Broken => write!(f, "#")?,
-                Spring => write!(f, ".")?,
-                Unknown => write!(f, "?")?,
-            }
+            write!(f, "{t}")?;
         }
 
         write!(
@@ -54,7 +60,7 @@ impl FromStr for RowSpec {
         let seq = pieces
             .next()
             .context("expected two space-separated pieces")?
-            .split(",")
+            .split(',')
             .filter(|s| !s.is_empty())
             .map(FromStr::from_str)
             .collect::<Result<Vec<_>, _>>()?;
@@ -86,13 +92,17 @@ impl RowSpec {
             .intersperse([Tile::Unknown].iter())
             .flatten()
             .cloned()
-            .take(self.tiles.len() * 5)
+            .take((self.tiles.len() + 1) * 5 - 1) // -1 as no trailing ?
             .collect();
         self.seq = std::iter::repeat(self.seq.iter())
             .flatten()
             .copied()
             .take(self.seq.len() * 5)
             .collect();
+    }
+
+    pub fn count(&self, tile: Tile) -> usize {
+        self.tiles.iter().filter(|t| **t == tile).count()
     }
 }
 
@@ -150,10 +160,13 @@ mod tests {
     #[test]
     fn test_unfold() {
         let expected: RowSpec = ".#?.#?.#?.#?.# 1,1,1,1,1".parse().unwrap();
-        let mut actual: RowSpec = ".#".parse().unwrap();
+        let mut actual: RowSpec = ".# 1".parse().unwrap();
         actual.unfold();
 
-        assert_eq!(expected, actual);
+        assert_eq!(
+            expected, actual,
+            "\nexpected:\t{expected}\ngot:\t\t{actual}"
+        );
 
         let expected: RowSpec =
             "???.###????.###????.###????.###????.### 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
