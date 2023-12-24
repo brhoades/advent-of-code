@@ -33,7 +33,7 @@ pub fn run(input: String) -> Result<()> {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Strategy {
-    Brute,
+    // Brute,
     Planned,
 }
 
@@ -41,10 +41,6 @@ impl RowSpec {
     // returns all possible arrangements of tiles with the given row's sequence.
     fn combinations(&self, strategy: Strategy) -> usize {
         match strategy {
-            Strategy::Brute => {
-                let mut cf = BruteComboFinder::new(self);
-                cf.combinations_possible()
-            }
             Strategy::Planned => {
                 let mut cf = PlannedComboFinder::new(self, Default::default());
                 cf.combinations_possible()
@@ -71,101 +67,6 @@ struct BruteComboFinder {
     cache: HashMap<Vec<Tile>, usize>,
 }
 
-impl BruteComboFinder {
-    fn new(rowspec: &RowSpec) -> Self {
-        Self {
-            tiles: rowspec.tiles.clone(),
-            seq: rowspec.seq.clone(),
-            unknown: rowspec
-                .tiles
-                .iter()
-                .filter(|t| **t == Tile::Unknown)
-                .count(),
-            _spring: rowspec.tiles.iter().filter(|t| **t == Tile::Spring).count(),
-            broken: rowspec.tiles.iter().filter(|t| **t == Tile::Broken).count(),
-            cache: Default::default(),
-        }
-    }
-
-    fn combinations_possible(&mut self) -> usize {
-        if !self.is_possible_v2() {
-            return 0;
-        }
-        let Some((idx, _)) = self
-            .tiles
-            .iter()
-            .enumerate()
-            .find(|(_, t)| **t == Tile::Unknown)
-        else {
-            if is_valid(&self.tiles, &self.seq) {
-                debug!(
-                    "[valid]   all done: {} {}",
-                    self.tiles.iter().map(ToString::to_string).join(""),
-                    self.seq.iter().map(ToString::to_string).join(",")
-                );
-                return 1;
-            } else {
-                debug!(
-                    "[invalid] all done: {} {}",
-                    self.tiles.iter().map(ToString::to_string).join(""),
-                    self.seq.iter().map(ToString::to_string).join(",")
-                );
-                return 0;
-            }
-        };
-
-        trace!("idx: {idx}");
-
-        let mut sum = 0;
-        *self.tiles.get_mut(idx).unwrap() = Tile::Spring;
-        sum += self.get_or_insert();
-
-        *self.tiles.get_mut(idx).unwrap() = Tile::Broken;
-        sum += self.get_or_insert();
-
-        // reset so the parent stack can recurse cleanly
-        *self.tiles.get_mut(idx).unwrap() = Tile::Unknown;
-
-        sum
-    }
-
-    fn get_or_insert(&mut self) -> usize {
-        if let Some(res) = self.cache.get(&self.tiles) {
-            *res
-        } else {
-            let res = self.combinations_possible();
-            self.cache.insert(self.tiles.clone(), res);
-            res
-        }
-    }
-
-    // does quick match to determine if it's a possible tree.
-    // If the remaining unknown tiles is less than the sum of unknowns required, bial.
-    fn is_possible_v2(&self) -> bool {
-        (self.seq.iter().sum::<usize>() as i64 - self.broken as i64) <= self.unknown as i64
-    }
-}
-
-// is_possible returns whether the given tiles can still match seq.
-fn is_possible_v1(tiles: &[Tile], seq: &[usize]) -> bool {
-    tiles
-        .split(|t| *t == Tile::Spring)
-        .map(|s| {
-            let (broken, unknown) = s.iter().partition::<Vec<&Tile>, _>(|s| **s == Tile::Broken);
-            (broken.len(), unknown.len())
-        })
-        .filter(|(l, r)| *l != 0 || *r != 0)
-        .zip_longest(seq.iter())
-        .all(|pair| match pair {
-            EitherOrBoth::Both((broken, unknown), expected_broken) => {
-                broken == *expected_broken
-                    || ((broken as i64 - *expected_broken as i64).unsigned_abs() as usize) < unknown
-            }
-            EitherOrBoth::Right(_) => true,
-            EitherOrBoth::Left(_) => false,
-        })
-}
-
 // returns true when contiguous broken tiles are in the size of groups provided
 // by seq
 fn is_valid(tiles: &[Tile], seq: &[usize]) -> bool {
@@ -185,6 +86,7 @@ type ComboCache = Rc<RefCell<HashMap<(Vec<Tile>, Vec<usize>), usize>>>;
 struct PlannedComboFinder {
     tiles: Vec<Tile>,
     seq: Vec<usize>,
+    level: usize,
 
     cache: ComboCache,
 }
@@ -194,6 +96,7 @@ impl PlannedComboFinder {
         Self {
             tiles: rowspec.tiles.clone(),
             seq: rowspec.seq.clone(),
+            level: 0,
             cache,
         }
     }
@@ -201,16 +104,18 @@ impl PlannedComboFinder {
     // walks seq like a set of plans, inserting the required combo
     // if it's not possible, inserts a Spring and continues to recurse.
     fn combinations_possible(&mut self) -> usize {
-        if !self.is_possible() {
-            return 0;
-        }
-        trace!("============= ITER =================");
-        if self.seq.is_empty() || self.tiles.is_empty() || self.seq.len() > self.tiles.len() {
+        trace!("============= ITER depth={} =================", self.level);
+        if self.seq.is_empty()
+            || self.tiles.is_empty()
+            || self.seq.len() > self.tiles.len()
+            || self.seq.first().is_some_and(|seq| *seq > self.tiles.len())
+        {
             trace!(
-                "done because: clause 1: {}, clause 2: {}, clause 3: {}",
+                "done because: clause 1: {}, clause 2: {}, clause 3: {}, clause 4: {}",
                 self.seq.is_empty(),
                 self.tiles.is_empty(),
-                self.seq.len() > self.tiles.len()
+                self.seq.len() > self.tiles.len(),
+                self.seq.first().is_some_and(|seq| *seq > self.tiles.len()),
             );
             trace!(
                 "tiles.len(): {}, seq.len(): {}",
@@ -234,73 +139,105 @@ impl PlannedComboFinder {
             }
         }
 
-        let seq_len = self.seq.len();
-        let seq_rng = 0..self.seq.first().copied().unwrap_or_default();
-        let boundary_idx = seq_rng.len();
-
-        trace!("seq: {:?}", self.seq);
+        let seq = self.seq.first().copied().unwrap();
+        let rng = 0..seq;
         trace!(
-            "tiles: {}",
-            self.tiles.iter().map(ToString::to_string).join("")
+            "eval: {} {}",
+            self.tiles.iter().map(ToString::to_string).join(""),
+            self.seq.iter().map(ToString::to_string).join(",")
         );
-        trace!("seq_len: {seq_len}, seq_rng: {seq_rng:?}, boundary_idx: {boundary_idx}");
+        debug!("seq_len: {seq}\trng: {:?}", rng.clone());
 
-        // look forward:
-        // Tiles must not be a spring to set the seq properly.
-        if let Some(last_spring_idx) = self.tiles[seq_rng.clone()]
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_, t)| **t == Tile::Spring)
-            .map(|(i, _)| i + seq_rng.start)
-        {
-            let mut s = self.clone_subproblem(last_spring_idx + 1, false);
-            trace!(
-                "\trecursing as all tiles in seq are spring / setting all tiles in rng to Spring"
-            );
-            let sum = s.solve_subproblem();
-
-            return sum;
+        let mut first_broken = None;
+        let mut first_spring = None;
+        let mut last_broken = None;
+        let mut last_spring = None;
+        let boundary_tile = self.tiles.get(seq);
+        for (idx, t) in self.tiles[rng].iter().enumerate() {
+            match *t {
+                Tile::Broken => {
+                    if first_broken.is_none() {
+                        if first_broken.is_none() {
+                            first_broken = Some(idx);
+                        }
+                        last_broken = Some(idx);
+                    }
+                }
+                Tile::Spring => {
+                    if first_spring.is_none() {
+                        if first_spring.is_none() {
+                            first_spring = Some(idx);
+                        }
+                        last_spring = Some(idx);
+                    }
+                }
+                _ => (),
+            }
         }
+        debug!("first_broken: {first_broken:?} last_broken: {last_broken:?} first_spring: {first_spring:?} last_spring: {last_spring:?}");
 
-        // look forward:
-        // the bounary tile needs to be the end of the tiles, a ., or a ?
-        if !(boundary_idx == self.tiles.len()
-            || self.tiles[boundary_idx] == Tile::Spring
-            || self.tiles[boundary_idx] == Tile::Unknown)
-        {
-            // skip forward, try again after
-            // find the next broken tile for evluation, excluding this tile
-            let first_broken = self.tiles[0..=boundary_idx]
-                .iter()
-                .enumerate()
-                .skip(1)
-                .find_or_first(|(_, t)| **t == Tile::Broken)
-                .map(|(i, _)| i)
-                .unwrap_or(boundary_idx);
-            trace!("\trecursing to next unknown after setting all tiles in rng to Spring");
-            let mut s = self.clone_subproblem(first_broken, false);
-            return s.solve_subproblem();
-        }
-
-        // we can now set all tiles in rng to Tile::Broken. We also set boundary_idx to
-        // spring if it's in range.
-        let mut s = self.clone_subproblem(boundary_idx + 1, true);
-        // s.broken += seq_rng.len();
-
-        // and recurse.
         let mut sum = 0;
-        trace!("\trecursing after setting this seq broken + 1 spring at {boundary_idx}");
-        sum += s.solve_subproblem();
-        std::mem::drop(s);
-
-        // check just setting ourself to spring
-        if self.tiles[0] == Tile::Unknown {
-            trace!("\trecursing after setting unknown to spring");
-            let mut s = self.clone_subproblem(1, false);
-            sum += s.solve_subproblem();
+        match (last_spring, last_broken) {
+            // no spring, boundary is a separator => pop seq, skip past boundary
+            // in this case, we've set all unknowns to be broken, so we don't go to other cases.
+            (None, _)
+                if boundary_tile.is_none()
+                    || !boundary_tile.is_some_and(|t| *t == Tile::Broken) =>
+            {
+                debug!("\tpopping seq and recursing to {}", seq + 1);
+                sum += self.clone_subproblem(seq + 1, true).solve_subproblem();
+            }
+            // all unknowns but without a boundary tile. skip to boundary.
+            (None, None) => {
+                debug!("\tall unknowns with bad boundary, recursing to {seq}");
+                // treat all skipped as dots
+                return self.clone_subproblem(seq, false).solve_subproblem();
+            }
+            (Some(spring_idx), Some(broken_idx)) => {
+                // spring in seq after broken? invalid, can't complete
+                if spring_idx > broken_idx {
+                    debug!(
+                        "\t[invalid] broken found in incompletable branch: {} {}",
+                        self.tiles.iter().map(ToString::to_string).join(""),
+                        self.seq.iter().map(ToString::to_string).join(",")
+                    );
+                // before? reevaluate right after spring, treat everything before as springs
+                } else {
+                    debug!("\tskipping past last spring to {}", spring_idx + 1);
+                    return self
+                        .clone_subproblem(spring_idx + 1, false)
+                        .solve_subproblem();
+                }
+            }
+            (None, Some(idx)) if idx != 0 => {
+                debug!("\tskipping to last broken spring @ {idx}");
+                // evaluate @ the broken spring, we treat everything before as-is / as springs
+                return self.clone_subproblem(idx, false).solve_subproblem();
+            }
+            (Some(idx), None) => {
+                // evaluate one past the spring, treat everything before as-is/as springs
+                debug!("\tskipping past last spring to {}", idx + 1);
+                return self.clone_subproblem(idx + 1, false).solve_subproblem();
+            }
+            (None, Some(_)) => {
+                debug!(
+                    "\t[invalid] no springs in seq, but boundary missing: {} {}",
+                    self.tiles.iter().map(ToString::to_string).join(""),
+                    self.seq.iter().map(ToString::to_string).join(",")
+                );
+            }
         }
 
+        // if we can be a spring, try it out
+        if self.tiles[0] == Tile::Unknown {
+            debug!("\tattempting to be spring");
+            sum += self.clone_subproblem(1, false).solve_subproblem();
+        }
+
+        trace!(
+            "====== iter end with sum={sum} @ level {} ======",
+            self.level
+        );
         sum
     }
 
@@ -321,9 +258,10 @@ impl PlannedComboFinder {
             .get(&(self.tiles.clone(), self.seq.clone()))
         {
             debug!(
-                "[cache]   all done: {} {}",
+                "[cached]   all done: {} {} ==> {}",
                 self.tiles.iter().map(ToString::to_string).join(""),
-                self.seq.iter().map(ToString::to_string).join(",")
+                self.seq.iter().map(ToString::to_string).join(","),
+                res,
             );
             return *res;
         }
@@ -332,6 +270,12 @@ impl PlannedComboFinder {
         self.cache
             .borrow_mut()
             .insert((self.tiles.clone(), self.seq.clone()), res);
+        debug!(
+            "[add cache]   {} {} ==> {}",
+            self.tiles.iter().map(ToString::to_string).join(""),
+            self.seq.iter().map(ToString::to_string).join(","),
+            res,
+        );
 
         res
     }
@@ -352,10 +296,9 @@ impl PlannedComboFinder {
             self.seq.to_vec()
         };
         Self {
-            // broken: 0,      // tiles.iter().filter(|t| **t == Tile::Broken).count(),
-            // rem_unknown: 0, // tiles.iter().filter(|t| **t == Tile::Unknown).count(),
             tiles,
             seq,
+            level: self.level + 1,
             cache: self.cache.clone(),
         }
     }
@@ -397,15 +340,6 @@ mod tests {
     }
 
     #[test]
-    fn test_brute_combos_possible() {
-        init_logging();
-        let r: RowSpec = "???.### 1,1,3".parse().unwrap();
-        let mut cf = BruteComboFinder::new(&r);
-
-        assert_eq!(1, cf.combinations_possible());
-    }
-
-    #[test]
     fn test_planned_combos_possible() {
         init_logging();
         let r: RowSpec = "???.### 1,1,3".parse().unwrap();
@@ -413,55 +347,6 @@ mod tests {
         let mut cf = PlannedComboFinder::new(&r, cache.clone());
 
         assert_eq!(1, cf.combinations_possible());
-    }
-
-    #[test]
-    fn test_example_1_brute_solution() {
-        init_logging();
-        let rows: Rows = EXAMPLE_1.parse().unwrap();
-        let expected = [1, 4, 1, 1, 4, 10];
-
-        for (i, (row, expected)) in rows.iter().zip(expected.iter()).enumerate() {
-            println!(
-                "========================\nROW #{}\n========================",
-                i + 1
-            );
-            println!("{row}");
-            assert_eq!(
-                *expected,
-                row.combinations(Strategy::Brute),
-                "row #{} failed check",
-                i + 1
-            );
-        }
-
-        println!("========================\nALL COMBOS\n========================");
-        assert_eq!(21, rows.total_combinations(Strategy::Brute));
-    }
-
-    // #[test]
-    fn test_example_1_unfolded_brute_solution() {
-        init_logging();
-        let mut rows: Rows = EXAMPLE_1.parse().unwrap();
-        let expected = [1, 16384, 1, 16, 2500, 506250];
-        rows.unfold();
-
-        for (i, (row, expected)) in rows.iter().zip(expected.iter()).enumerate() {
-            println!(
-                "========================\nROW #{}\n========================",
-                i + 1
-            );
-            println!("{row}");
-            assert_eq!(
-                *expected,
-                row.combinations(Strategy::Brute),
-                "row #{} failed check",
-                i + 1
-            );
-        }
-
-        println!("========================\nALL COMBOS\n========================");
-        assert_eq!(21, rows.total_combinations(Strategy::Brute));
     }
 
     #[test]
@@ -510,30 +395,38 @@ mod tests {
         }
 
         println!("========================\nALL COMBOS\n========================");
-        assert_eq!(21, rows.total_combinations(Strategy::Planned));
+        assert_eq!(525152, rows.total_combinations(Strategy::Planned));
     }
 
     #[test]
-    fn test_custom_unfolded_planned_solution() {
+    fn test_basic_count() {
         init_logging();
         let rows = [
             ("?   1", 1),
-            ("?.  1", 2_usize.pow(4)),
-            (".?  1", 2_usize.pow(4)),
+            ("?.  1", 1),
+            (".?  1", 1),
             ("??  2", 1),
-            ("??. 2", 2_usize.pow(4)),
-            (".?? 2", 2_usize.pow(4)),
+            ("??. 2", 1), // 5
+            (".?? 2", 1),
             ("#.  1", 1),
             ("#   1", 1),
             (".#  1", 1),
-            (".   1", 1),
+            (".   1", 0), // 10
+            ("... 3", 0),
+            ("??  1", 2),
+            ("?.? 1", 2),
+            (".?? 1", 2),
+            ("??. 1", 2), // 15
+            ("??.#.# 1,1,1", 2),
+            ("#..# 1,1", 1),
+            (".?.# 1,1", 1),
+            (".?.#   1", 1),
         ]
         .into_iter()
         .map(|(s, c)| (s.parse::<RowSpec>().unwrap(), c))
         .enumerate();
 
         for (i, (mut row, expected)) in rows {
-            row.unfold();
             println!(
                 "========================\nROW #{}\n========================",
                 i + 1
@@ -546,5 +439,13 @@ mod tests {
                 i + 1
             );
         }
+    }
+
+    #[test]
+    fn test_planned_regression_6_5() {
+        init_logging();
+        // this case flares up from time to time
+        let row: RowSpec = "??.######..#####. 6,5".parse().unwrap();
+        assert_eq!(1, row.combinations(Strategy::Planned));
     }
 }
