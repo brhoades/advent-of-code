@@ -2,7 +2,7 @@ use crate::prelude::*;
 use itertools::Itertools;
 use std::fmt;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Tile {
     Broken,
     Spring,
@@ -137,6 +137,7 @@ mod tests {
 
     #[test]
     fn test_parse() {
+        init_logging();
         use Tile::*;
         let rows: Rows = EXAMPLE_1.parse().unwrap();
 
@@ -159,6 +160,7 @@ mod tests {
 
     #[test]
     fn test_unfold() {
+        init_logging();
         let expected: RowSpec = ".#?.#?.#?.#?.# 1,1,1,1,1".parse().unwrap();
         let mut actual: RowSpec = ".# 1".parse().unwrap();
         actual.unfold();

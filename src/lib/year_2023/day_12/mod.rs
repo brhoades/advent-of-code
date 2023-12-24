@@ -5,6 +5,9 @@ use std::io::Write;
 use crate::prelude::*;
 use itertools::{EitherOrBoth, Itertools};
 use rows::*;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 
 pub fn run(input: String) -> Result<()> {
     let mut rows: Rows = input.parse()?;
@@ -19,7 +22,7 @@ pub fn run(input: String) -> Result<()> {
     for (i, row) in rows.iter().enumerate() {
         print!("{i}: ");
         let _ = std::io::stdout().flush();
-        let v = row.combinations();
+        let v = row.combinations(Strategy::Planned);
         println!("{v}");
         sum += v;
     }
@@ -28,17 +31,32 @@ pub fn run(input: String) -> Result<()> {
     Ok(())
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Strategy {
+    Brute,
+    Planned,
+}
+
 impl RowSpec {
     // returns all possible arrangements of tiles with the given row's sequence.
-    fn combinations(&self) -> usize {
-        let mut cf = PlannedComboFinder::new(self);
-        cf.combinations_possible()
+    fn combinations(&self, strategy: Strategy) -> usize {
+        match strategy {
+            Strategy::Brute => {
+                let mut cf = BruteComboFinder::new(self);
+                cf.combinations_possible()
+            }
+            Strategy::Planned => {
+                let mut cf = PlannedComboFinder::new(self, Default::default());
+                cf.combinations_possible()
+            }
+        }
     }
 }
 
 impl Rows {
-    fn total_combinations(&self) -> usize {
-        self.iter().map(|rspec| rspec.combinations()).sum()
+    #[allow(dead_code)]
+    fn total_combinations(&self, strat: Strategy) -> usize {
+        self.iter().map(|rspec| rspec.combinations(strat)).sum()
     }
 }
 
@@ -50,6 +68,7 @@ struct BruteComboFinder {
     unknown: usize,
     _spring: usize,
     broken: usize,
+    cache: HashMap<Vec<Tile>, usize>,
 }
 
 impl BruteComboFinder {
@@ -64,6 +83,7 @@ impl BruteComboFinder {
                 .count(),
             _spring: rowspec.tiles.iter().filter(|t| **t == Tile::Spring).count(),
             broken: rowspec.tiles.iter().filter(|t| **t == Tile::Broken).count(),
+            cache: Default::default(),
         }
     }
 
@@ -98,15 +118,25 @@ impl BruteComboFinder {
 
         let mut sum = 0;
         *self.tiles.get_mut(idx).unwrap() = Tile::Spring;
-        sum += self.combinations_possible();
+        sum += self.get_or_insert();
 
         *self.tiles.get_mut(idx).unwrap() = Tile::Broken;
-        sum += self.combinations_possible();
+        sum += self.get_or_insert();
 
         // reset so the parent stack can recurse cleanly
         *self.tiles.get_mut(idx).unwrap() = Tile::Unknown;
 
         sum
+    }
+
+    fn get_or_insert(&mut self) -> usize {
+        if let Some(res) = self.cache.get(&self.tiles) {
+            *res
+        } else {
+            let res = self.combinations_possible();
+            self.cache.insert(self.tiles.clone(), res);
+            res
+        }
     }
 
     // does quick match to determine if it's a possible tree.
@@ -149,28 +179,22 @@ fn is_valid(tiles: &[Tile], seq: &[usize]) -> bool {
             _ => false,
         })
 }
+type ComboCache = Rc<RefCell<HashMap<(Vec<Tile>, Vec<usize>), usize>>>;
 
 #[derive(Clone)]
 struct PlannedComboFinder {
     tiles: Vec<Tile>,
     seq: Vec<usize>,
-    seq_idx: usize,  // the current sequence entry to satisfy
-    tile_idx: usize, // the current tile we are evaluating an insert on
 
-    // optimizations to bail early when we don't have enough left
-    rem_unknown: usize, // unknown tiles left in the tiles vec
-    broken: usize,      // total broken tiles
+    cache: ComboCache,
 }
 
 impl PlannedComboFinder {
-    fn new(rowspec: &RowSpec) -> Self {
+    fn new(rowspec: &RowSpec, cache: ComboCache) -> Self {
         Self {
             tiles: rowspec.tiles.clone(),
             seq: rowspec.seq.clone(),
-            seq_idx: 0,
-            tile_idx: 0,
-            rem_unknown: rowspec.count(Tile::Unknown),
-            broken: rowspec.count(Tile::Broken),
+            cache,
         }
     }
 
@@ -181,22 +205,16 @@ impl PlannedComboFinder {
             return 0;
         }
         trace!("============= ITER =================");
-        if self.seq_idx >= self.seq.len()
-            || self.tile_idx >= self.tiles.len()
-            || self.seq[self.seq_idx] + self.tile_idx > self.tiles.len()
-        {
+        if self.seq.is_empty() || self.tiles.is_empty() || self.seq.len() > self.tiles.len() {
             trace!(
                 "done because: clause 1: {}, clause 2: {}, clause 3: {}",
-                self.seq_idx >= self.seq.len(),
-                self.tile_idx >= self.tiles.len(),
-                self.seq_idx < self.seq.len()
-                    && self.seq[self.seq_idx] + self.tile_idx >= self.tiles.len()
+                self.seq.is_empty(),
+                self.tiles.is_empty(),
+                self.seq.len() > self.tiles.len()
             );
             trace!(
-                "tile_idx: {}, tiles.len(): {}, seq_idx: {}, seq.len(): {}",
-                self.tile_idx,
+                "tiles.len(): {}, seq.len(): {}",
                 self.tiles.len(),
-                self.seq_idx,
                 self.seq.len()
             );
             if is_valid(&self.tiles, &self.seq) {
@@ -216,16 +234,16 @@ impl PlannedComboFinder {
             }
         }
 
-        let seq_len = self.seq[self.seq_idx];
-        let boundary_idx = self.tile_idx + seq_len;
-        let seq_rng = self.tile_idx..boundary_idx;
+        let seq_len = self.seq.len();
+        let seq_rng = 0..self.seq.first().copied().unwrap_or_default();
+        let boundary_idx = seq_rng.len();
 
         trace!("seq: {:?}", self.seq);
         trace!(
             "tiles: {}",
             self.tiles.iter().map(ToString::to_string).join("")
         );
-        trace!("seq_len: {seq_len}, seq_rng: {seq_rng:?}, boundary_idx: {boundary_idx}, tile_idx: {}, seq_idx: {}",self.tile_idx, self.seq_idx);
+        trace!("seq_len: {seq_len}, seq_rng: {seq_rng:?}, boundary_idx: {boundary_idx}");
 
         // look forward:
         // Tiles must not be a spring to set the seq properly.
@@ -236,18 +254,13 @@ impl PlannedComboFinder {
             .find(|(_, t)| **t == Tile::Spring)
             .map(|(i, _)| i + seq_rng.start)
         {
-            // skip past the last spring and set everything in between to springs
-            let mut s = self.clone();
-            for t in &mut s.tiles[seq_rng.start..last_spring_idx] {
-                if *t == Tile::Unknown {
-                    *t = Tile::Spring;
-                }
-            }
-            s.tile_idx = last_spring_idx + 1;
+            let mut s = self.clone_subproblem(last_spring_idx + 1, false);
             trace!(
                 "\trecursing as all tiles in seq are spring / setting all tiles in rng to Spring"
             );
-            return s.combinations_possible();
+            let sum = s.solve_subproblem();
+
+            return sum;
         }
 
         // look forward:
@@ -257,60 +270,35 @@ impl PlannedComboFinder {
             || self.tiles[boundary_idx] == Tile::Unknown)
         {
             // skip forward, try again after
-            let mut s = self.clone();
-            let mut first_broken = boundary_idx; // default to moving to the end if we don't find one
-            for i in seq_rng.clone() {
-                if s.tiles[i] == Tile::Unknown {
-                    s.tiles[i] = Tile::Spring;
-                } else if first_broken == boundary_idx
-                    && i != seq_rng.start
-                    && s.tiles[i] == Tile::Broken
-                {
-                    first_broken = i;
-                }
-            }
             // find the next broken tile for evluation, excluding this tile
-            s.tile_idx = s.tiles[(self.tile_idx + 1)..=boundary_idx]
+            let first_broken = self.tiles[0..=boundary_idx]
                 .iter()
                 .enumerate()
+                .skip(1)
                 .find_or_first(|(_, t)| **t == Tile::Broken)
-                .map(|(i, _)| i + self.tile_idx + 1)
+                .map(|(i, _)| i)
                 .unwrap_or(boundary_idx);
             trace!("\trecursing to next unknown after setting all tiles in rng to Spring");
-            return s.combinations_possible();
+            let mut s = self.clone_subproblem(first_broken, false);
+            return s.solve_subproblem();
         }
 
         // we can now set all tiles in rng to Tile::Broken. We also set boundary_idx to
         // spring if it's in range.
-        let mut s = self.clone();
-        s.broken += seq_rng.len();
-        for idx in seq_rng {
-            if s.tiles[idx] == Tile::Unknown {
-                s.tiles[idx] = Tile::Broken;
-                s.rem_unknown -= 1;
-            }
-        }
-        if boundary_idx != self.tiles.len() {
-            s.tiles[boundary_idx] = Tile::Spring;
-        }
+        let mut s = self.clone_subproblem(boundary_idx + 1, true);
+        // s.broken += seq_rng.len();
 
         // and recurse.
         let mut sum = 0;
-        s.tile_idx = boundary_idx + 1;
-        s.seq_idx += 1;
-        trace!("\trecursing after setting this seq to broken");
-        sum += s.combinations_possible();
+        trace!("\trecursing after setting this seq broken + 1 spring at {boundary_idx}");
+        sum += s.solve_subproblem();
+        std::mem::drop(s);
 
         // check just setting ourself to spring
-        if self.tiles[self.tile_idx] == Tile::Unknown {
-            self.tiles[self.tile_idx] = Tile::Spring;
+        if self.tiles[0] == Tile::Unknown {
             trace!("\trecursing after setting unknown to spring");
-            self.tile_idx += 1;
-            sum += self.combinations_possible();
-
-            // reset for caller
-            self.tile_idx -= 1;
-            self.tiles[self.tile_idx] = Tile::Unknown;
+            let mut s = self.clone_subproblem(1, false);
+            sum += s.solve_subproblem();
         }
 
         sum
@@ -318,14 +306,58 @@ impl PlannedComboFinder {
 
     // basics--- can this still work out?
     fn is_possible(&self) -> bool {
-        if self.tile_idx >= self.tiles.len() || self.seq_idx > self.seq.len() {
-            return true;
+        if !self.seq.is_empty() && self.tiles.is_empty() {
+            return false;
         }
-        self.seq[self.seq_idx..].iter().sum::<usize>()
-            <= self.tiles[self.tile_idx..]
-                .iter()
-                .filter(|t| **t != Tile::Spring)
-                .count()
+
+        self.seq.iter().sum::<usize>() <= self.tiles.iter().filter(|t| **t != Tile::Spring).count()
+    }
+
+    // clones this struct and solves it as a subproblem, reading from the cache if possible.
+    fn solve_subproblem(&mut self) -> usize {
+        if let Some(res) = self
+            .cache
+            .borrow()
+            .get(&(self.tiles.clone(), self.seq.clone()))
+        {
+            debug!(
+                "[cache]   all done: {} {}",
+                self.tiles.iter().map(ToString::to_string).join(""),
+                self.seq.iter().map(ToString::to_string).join(",")
+            );
+            return *res;
+        }
+
+        let res = self.combinations_possible();
+        self.cache
+            .borrow_mut()
+            .insert((self.tiles.clone(), self.seq.clone()), res);
+
+        res
+    }
+
+    // clones this struct, returning a subproblem with the reamining unsolved portion
+    //
+    // It trims tiles to be only after the provided offset. Seq is cloned
+    // to exclude the first item. tile_idx and seq idx set to 0.
+    fn clone_subproblem(&mut self, tile_offset: usize, step_seq: bool) -> Self {
+        let tiles = if tile_offset >= self.tiles.len() {
+            vec![]
+        } else {
+            self.tiles[tile_offset..].to_vec()
+        };
+        let seq = if step_seq {
+            self.seq[1..].to_vec()
+        } else {
+            self.seq.to_vec()
+        };
+        Self {
+            // broken: 0,      // tiles.iter().filter(|t| **t == Tile::Broken).count(),
+            // rem_unknown: 0, // tiles.iter().filter(|t| **t == Tile::Unknown).count(),
+            tiles,
+            seq,
+            cache: self.cache.clone(),
+        }
     }
 }
 
@@ -343,6 +375,7 @@ mod tests {
 
     #[test]
     fn test_check_valid() {
+        init_logging();
         use Tile::*;
 
         assert!(is_valid(
@@ -365,6 +398,7 @@ mod tests {
 
     #[test]
     fn test_brute_combos_possible() {
+        init_logging();
         let r: RowSpec = "???.### 1,1,3".parse().unwrap();
         let mut cf = BruteComboFinder::new(&r);
 
@@ -373,14 +407,17 @@ mod tests {
 
     #[test]
     fn test_planned_combos_possible() {
+        init_logging();
         let r: RowSpec = "???.### 1,1,3".parse().unwrap();
-        let mut cf = PlannedComboFinder::new(&r);
+        let cache: ComboCache = Default::default();
+        let mut cf = PlannedComboFinder::new(&r, cache.clone());
 
         assert_eq!(1, cf.combinations_possible());
     }
 
     #[test]
-    fn test_example_1_solution() {
+    fn test_example_1_brute_solution() {
+        init_logging();
         let rows: Rows = EXAMPLE_1.parse().unwrap();
         let expected = [1, 4, 1, 1, 4, 10];
 
@@ -390,10 +427,124 @@ mod tests {
                 i + 1
             );
             println!("{row}");
-            assert_eq!(*expected, row.combinations(), "row #{} failed check", i + 1);
+            assert_eq!(
+                *expected,
+                row.combinations(Strategy::Brute),
+                "row #{} failed check",
+                i + 1
+            );
         }
 
         println!("========================\nALL COMBOS\n========================");
-        assert_eq!(21, rows.total_combinations());
+        assert_eq!(21, rows.total_combinations(Strategy::Brute));
+    }
+
+    // #[test]
+    fn test_example_1_unfolded_brute_solution() {
+        init_logging();
+        let mut rows: Rows = EXAMPLE_1.parse().unwrap();
+        let expected = [1, 16384, 1, 16, 2500, 506250];
+        rows.unfold();
+
+        for (i, (row, expected)) in rows.iter().zip(expected.iter()).enumerate() {
+            println!(
+                "========================\nROW #{}\n========================",
+                i + 1
+            );
+            println!("{row}");
+            assert_eq!(
+                *expected,
+                row.combinations(Strategy::Brute),
+                "row #{} failed check",
+                i + 1
+            );
+        }
+
+        println!("========================\nALL COMBOS\n========================");
+        assert_eq!(21, rows.total_combinations(Strategy::Brute));
+    }
+
+    #[test]
+    fn test_example_1_planned_solution() {
+        init_logging();
+        let rows: Rows = EXAMPLE_1.parse().unwrap();
+        let expected = [1, 4, 1, 1, 4, 10];
+
+        for (i, (row, expected)) in rows.iter().zip(expected.iter()).enumerate() {
+            println!(
+                "========================\nROW #{}\n========================",
+                i + 1
+            );
+            println!("{row}");
+            assert_eq!(
+                *expected,
+                row.combinations(Strategy::Planned),
+                "row #{} failed check",
+                i + 1
+            );
+        }
+
+        println!("========================\nALL COMBOS\n========================");
+        assert_eq!(21, rows.total_combinations(Strategy::Planned));
+    }
+
+    #[test]
+    fn test_example_1_unfolded_planned_solution() {
+        init_logging();
+        let mut rows: Rows = EXAMPLE_1.parse().unwrap();
+        let expected = [1, 16384, 1, 16, 2500, 506250];
+        rows.unfold();
+
+        for (i, (row, expected)) in rows.iter().zip(expected.iter()).enumerate() {
+            println!(
+                "========================\nROW #{}\n========================",
+                i + 1
+            );
+            println!("{row}");
+            assert_eq!(
+                *expected,
+                row.combinations(Strategy::Planned),
+                "row #{} failed check",
+                i + 1
+            );
+        }
+
+        println!("========================\nALL COMBOS\n========================");
+        assert_eq!(21, rows.total_combinations(Strategy::Planned));
+    }
+
+    #[test]
+    fn test_custom_unfolded_planned_solution() {
+        init_logging();
+        let rows = [
+            ("?   1", 1),
+            ("?.  1", 2_usize.pow(4)),
+            (".?  1", 2_usize.pow(4)),
+            ("??  2", 1),
+            ("??. 2", 2_usize.pow(4)),
+            (".?? 2", 2_usize.pow(4)),
+            ("#.  1", 1),
+            ("#   1", 1),
+            (".#  1", 1),
+            (".   1", 1),
+        ]
+        .into_iter()
+        .map(|(s, c)| (s.parse::<RowSpec>().unwrap(), c))
+        .enumerate();
+
+        for (i, (mut row, expected)) in rows {
+            row.unfold();
+            println!(
+                "========================\nROW #{}\n========================",
+                i + 1
+            );
+            println!("{row}");
+            assert_eq!(
+                expected,
+                row.combinations(Strategy::Planned),
+                "row #{} failed check",
+                i + 1
+            );
+        }
     }
 }
