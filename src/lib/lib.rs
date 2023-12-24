@@ -3,7 +3,6 @@ pub mod coord;
 mod logging;
 pub mod map;
 pub mod neighbor_map;
-pub mod parsers;
 pub mod year_2022;
 pub mod year_2023;
 
