@@ -6,12 +6,13 @@ import (
 	"log"
 	"os"
 
-	"brod.es/aoc/internal/twentyfive"
+	"brod.es/aoc/internal/twentyfive/one"
 	"github.com/urfave/cli/v3"
 )
 
 func main() {
 	var year, day, part int
+	var extra string
 	cmd := &cli.Command{
 		UseShortOptionHandling: true,
 		Commands: []*cli.Command{
@@ -22,6 +23,7 @@ func main() {
 					&cli.IntArg{Name: "year", Destination: &year},
 					&cli.IntArg{Name: "day", Destination: &day},
 					&cli.IntArg{Name: "part", Destination: &part},
+					&cli.StringArg{Name: "extra", Destination: &extra},
 				},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					if year != 25 {
@@ -30,7 +32,7 @@ func main() {
 
 					switch day {
 					case 1:
-						return twentyfive.One(part)
+						return one.One(part, extra)
 					}
 
 					return fmt.Errorf("unknown day: %d", day)

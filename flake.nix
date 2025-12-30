@@ -13,6 +13,7 @@
           # ghc
           rustup
           go
+          godef
         ];
       };
     }));
