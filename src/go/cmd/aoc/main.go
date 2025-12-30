@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"brod.es/aoc/internal/twentyfive/one"
+	"brod.es/aoc/internal/twentyfive/two"
 	"github.com/urfave/cli/v3"
 )
 
@@ -33,6 +34,8 @@ func main() {
 					switch day {
 					case 1:
 						return one.One(part, extra)
+					case 2:
+						return two.Main(part, extra)
 					}
 
 					return fmt.Errorf("unknown day: %d", day)
