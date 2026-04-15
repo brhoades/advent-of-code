@@ -6,15 +6,16 @@
   outputs = { self, nixpkgs, flake-utils }: let
     pkgsFor = system: import nixpkgs {
       inherit system;
-    }; in (flake-utils.lib.eachDefaultSystem (system: {
+    }; in (flake-utils.lib.eachDefaultSystem (system: with (pkgsFor system); {
       # envrc
-      devShells.default = with (pkgsFor system); mkShell {
+      devShells.default = mkShell {
         buildInputs = [
           # ghc
           rustup
           go
           godef
         ];
+        GOROOT = "${go}/share/go";
       };
     }));
 }
