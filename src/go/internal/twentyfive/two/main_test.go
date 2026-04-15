@@ -7,14 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func require[T any](val T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-
-	return val
-}
-
 // makes a range from consecutive pairs
 func mock(inputs ...int) Range {
 	switch len(inputs) {
