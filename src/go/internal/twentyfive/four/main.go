@@ -24,16 +24,17 @@ func Main(part int, path string) error {
 
 	fmt.Printf("%+v\n", grid)
 
-	cnt := count(grid)
-	fmt.Printf("\npart 1 result: %d\n", cnt)
+	cnt := removable(grid)
+	fmt.Printf("\npart 1 result (removable count): %d\n", len(cnt))
+
+	cntTwo := simulateRemovalRepeated(grid)
+	fmt.Printf("\npart 2 result (repeated removal count): %d\n", cntTwo)
 
 	return nil
 }
 
-// Returns the number of accessible paper rolls.
-func count(grid [][]bool) int {
-	cnt := 0
-
+// Returns which rolls of paper ([x, y]) are removable.
+func removable(grid [][]bool) (removable [][]int) {
 	for x, row := range grid {
 		for y, roll := range row {
 			if !roll {
@@ -53,11 +54,35 @@ func count(grid [][]bool) int {
 			}
 
 			if occupied < 4 {
-				cnt += 1
+				removable = append(removable, []int{x, y})
 			}
 		}
 	}
 
+	return removable
+}
+
+// Calculates removable paper. Simulates removal until no more rolls can be removed.
+// Returns the total number of removed rolls after.
+func simulateRemovalRepeated(input [][]bool) int {
+	// avoid editing input
+	grid := make([][]bool, len(input))
+	for i, row := range input {
+		grid[i] = row[:]
+	}
+
+	return simulateInner(grid)
+}
+
+func simulateInner(grid [][]bool) (cnt int) {
+	for _, pos := range removable(grid) {
+		grid[pos[0]][pos[1]] = false
+		cnt += 1
+	}
+
+	if cnt != 0 {
+		cnt += simulateInner(grid)
+	}
 	return cnt
 }
 
