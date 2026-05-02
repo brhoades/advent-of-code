@@ -6,8 +6,10 @@ import (
 	"log"
 	"os"
 
+	"brod.es/aoc/internal/twentyfive/five"
 	"brod.es/aoc/internal/twentyfive/four"
 	"brod.es/aoc/internal/twentyfive/one"
+	"brod.es/aoc/internal/twentyfive/six"
 	"brod.es/aoc/internal/twentyfive/three"
 	"brod.es/aoc/internal/twentyfive/two"
 	"github.com/urfave/cli/v3"
@@ -42,6 +44,10 @@ func main() {
 						return three.Main(part, extra)
 					case 4:
 						return four.Main(part, extra)
+					case 5:
+						return five.Main(extra)
+					case 6:
+						return six.Main(extra)
 					}
 
 					return fmt.Errorf("unknown day: %d", day)

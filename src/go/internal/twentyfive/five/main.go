@@ -42,7 +42,7 @@ import (
 // Naive? O(N^2) range merge. Walk each range and compare against other range.
 // Worst case: no merges, N^2. It's actually a bit tighter than that, it's N + N-1 + N-2 ... N-(N-1).
 
-func Main(part int, path string) error {
+func Main(path string) error {
 	if len(path) == 0 {
 		return fmt.Errorf("invalid path")
 	}
