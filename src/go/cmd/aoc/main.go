@@ -9,6 +9,7 @@ import (
 	"brod.es/aoc/internal/twentyfive/five"
 	"brod.es/aoc/internal/twentyfive/four"
 	"brod.es/aoc/internal/twentyfive/one"
+	"brod.es/aoc/internal/twentyfive/seven"
 	"brod.es/aoc/internal/twentyfive/six"
 	"brod.es/aoc/internal/twentyfive/three"
 	"brod.es/aoc/internal/twentyfive/two"
@@ -48,6 +49,8 @@ func main() {
 						return five.Main(extra)
 					case 6:
 						return six.Main(extra)
+					case 7:
+						return seven.Main(extra)
 					}
 
 					return fmt.Errorf("unknown day: %d", day)
