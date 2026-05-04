@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"brod.es/aoc/internal/twentyfive/eight"
 	"brod.es/aoc/internal/twentyfive/five"
 	"brod.es/aoc/internal/twentyfive/four"
 	"brod.es/aoc/internal/twentyfive/one"
@@ -51,6 +52,8 @@ func main() {
 						return six.Main(extra)
 					case 7:
 						return seven.Main(extra)
+					case 8:
+						return eight.Main(extra)
 					}
 
 					return fmt.Errorf("unknown day: %d", day)
